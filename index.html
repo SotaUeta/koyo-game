@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>こうよう祭 学科対抗陣取り</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#12162a; --panel:#1c2340; --panel2:#242c52; --line:#38406e;
+  --text:#eef1ff; --dim:#9aa3cc; --gold:#f2b705; --koyo:#ff6b35;
+  --danger:#e8394a; --ok:#2fa043;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;height:100%;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'DotGothic16', monospace;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+button{font-family:inherit;}
+
+/* ===== header ===== */
+#hdr{
+  display:flex; align-items:center; gap:8px; padding:8px 10px;
+  background:linear-gradient(180deg,#1a2144,#141a33); border-bottom:2px solid var(--line);
+  flex:0 0 auto;
+}
+#hdr .title{font-size:14px; line-height:1.2;}
+#hdr .title small{color:var(--dim); font-size:10px; display:block;}
+#hdr .spacer{flex:1;}
+.badge{border-radius:6px; padding:3px 8px; font-size:12px; border:1px solid var(--line); background:var(--panel);}
+#coinBadge{color:var(--gold);}
+#koyoBadge{color:var(--koyo);}
+#facBadge{font-weight:bold;}
+
+/* ===== tabs ===== */
+#main{flex:1 1 auto; overflow:auto; position:relative;}
+.tab{display:none; height:100%;}
+.tab.active{display:block;}
+#bar{
+  flex:0 0 auto; display:flex; border-top:2px solid var(--line); background:#141a33;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+#bar button{
+  flex:1; background:none; border:none; color:var(--dim); padding:10px 0 8px;
+  font-size:11px; cursor:pointer;
+}
+#bar button .ico{display:block; font-size:20px;}
+#bar button.active{color:var(--text); background:var(--panel2);}
+
+/* ===== map ===== */
+#mapWrap{position:relative; height:100%; overflow:auto; background:#0d1122;}
+#mapInner{position:relative; width:200%; max-width:1274px; margin:0 auto;}
+@media(min-width:700px){ #mapInner{width:100%;} }
+#mapInner img{width:100%; display:block; filter:brightness(.92);}
+.bicon{
+  position:absolute; transform:translate(-50%,-50%);
+  width:44px; height:44px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; cursor:pointer; border:3px solid #666; background:#222a;
+  box-shadow:0 2px 8px #0009; transition:border-color .3s;
+}
+.bicon .nm{
+  position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  font-size:10px; white-space:nowrap; background:#000a; padding:1px 5px; border-radius:4px;
+  pointer-events:none;
+}
+.bicon.far{opacity:.45; filter:grayscale(.7);}
+.bicon.battling::after{
+  content:"⚡"; position:absolute; top:-14px; right:-10px; font-size:18px;
+  animation:spark .25s infinite alternate;
+}
+@keyframes spark{ from{transform:scale(1) rotate(-15deg); filter:drop-shadow(0 0 2px #ff0);} to{transform:scale(1.5) rotate(15deg); filter:drop-shadow(0 0 8px #f80);} }
+#betaBanner{
+  position:sticky; top:0; z-index:5; text-align:center; font-size:11px;
+  background:#5a2bd0cc; padding:4px; letter-spacing:1px;
+}
+#geoBadge{position:sticky; top:24px; z-index:5; float:right; margin:6px; font-size:10px;}
+
+/* ===== panels / modals ===== */
+.overlay{
+  position:fixed; inset:0; background:#000a; z-index:20;
+  display:none; align-items:flex-end; justify-content:center;
+}
+.overlay.show{display:flex;}
+.sheet{
+  background:var(--panel); width:100%; max-width:560px; max-height:88vh; overflow:auto;
+  border-radius:16px 16px 0 0; border:2px solid var(--line); border-bottom:none;
+  padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+  animation:up .18s ease-out;
+}
+@keyframes up{from{transform:translateY(40px); opacity:0;} to{transform:none; opacity:1;}}
+.sheet h2{margin:0 0 4px; font-size:16px; display:flex; align-items:center; gap:8px;}
+.sheet .sub{color:var(--dim); font-size:11px; margin-bottom:10px;}
+.xbtn{margin-left:auto; background:none; border:1px solid var(--line); color:var(--dim); border-radius:6px; padding:2px 10px; cursor:pointer;}
+.hpbar{height:10px; background:#0008; border-radius:5px; overflow:hidden; border:1px solid var(--line);}
+.hpbar i{display:block; height:100%; background:linear-gradient(90deg,#2fa043,#7ad14f); transition:width .3s;}
+.hpbar.low i{background:linear-gradient(90deg,#e8394a,#ff9c3f);}
+.row{display:flex; gap:8px; margin:8px 0;}
+.bigbtn{
+  flex:1; padding:12px 6px; border-radius:10px; border:2px solid var(--line);
+  background:var(--panel2); color:var(--text); font-size:13px; cursor:pointer;
+}
+.bigbtn:disabled{opacity:.4;}
+.bigbtn .ico{display:block; font-size:22px; margin-bottom:2px;}
+.card{
+  border:2px solid var(--line); border-radius:10px; background:var(--panel2);
+  padding:8px 10px; margin:6px 0; font-size:12px;
+}
+.card .top{display:flex; align-items:center; gap:6px; margin-bottom:4px;}
+.rank{border-radius:4px; padding:0 6px; font-weight:bold; font-size:11px; color:#111;}
+.rank.F{background:#8d93a8;} .rank.C{background:#7ad14f;} .rank.B{background:#57b6ff;} .rank.A{background:var(--gold); box-shadow:0 0 8px var(--gold);}
+.stat{color:var(--dim);}
+.mini{font-size:11px; border-radius:6px; border:1px solid var(--line); background:#0006; color:var(--text); padding:4px 8px; cursor:pointer;}
+.mini:disabled{opacity:.35;}
+.mini.sel{background:var(--gold); color:#111; border-color:var(--gold);}
+.matline{display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; margin:6px 0;}
+.note{font-size:11px; color:var(--dim);}
+.center{text-align:center;}
+
+/* ===== gacha ===== */
+#tab-gacha{padding:20px 16px; text-align:center;}
+#gachaMachine{
+  width:180px; height:180px; margin:16px auto; border-radius:24px;
+  background:radial-gradient(circle at 35% 30%, #39447e, #1c2340 70%);
+  border:3px solid var(--line); display:flex; align-items:center; justify-content:center;
+  font-size:72px; position:relative;
+}
+#gachaMachine.spin{animation:shake .12s infinite;}
+@keyframes shake{ 0%{transform:rotate(-4deg);} 100%{transform:rotate(4deg);} }
+#gachaBtn{
+  font-size:16px; padding:14px 40px; border-radius:12px; cursor:pointer;
+  border:none; background:linear-gradient(180deg,#ffd34d,#f2a005); color:#221a00;
+  box-shadow:0 4px 0 #a06b00;
+}
+#gachaBtn:disabled{filter:grayscale(1); opacity:.5; box-shadow:none;}
+#gachaResult .card{max-width:320px; margin:10px auto;}
+.reveal{animation:pop .5s ease-out;}
+@keyframes pop{ 0%{transform:scale(.2) rotate(-20deg); opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1);} }
+
+/* ===== lists ===== */
+#tab-units,#tab-rank{padding:12px;}
+.fbar{height:14px; border-radius:7px; background:#0008; overflow:hidden; margin-top:3px; border:1px solid var(--line);}
+.fbar i{display:block; height:100%;}
+.plist{font-size:12px;}
+.plist .me{color:var(--gold);}
+
+/* ===== battle log ===== */
+#blog{font-size:12px; line-height:1.7; max-height:45vh; overflow:auto; background:#0007; border-radius:8px; padding:10px; border:1px solid var(--line);}
+#blog .atk{color:#ffb1b1;} #blog .def{color:#a9c7ff;} #blog .sys{color:var(--gold);}
+
+/* ===== register ===== */
+#reg{position:fixed; inset:0; background:var(--bg); z-index:50; overflow:auto; padding:24px 16px; display:none;}
+#reg.show{display:block;}
+#reg h1{font-size:20px; text-align:center;}
+#reg input{
+  width:100%; font-size:16px; padding:10px; border-radius:10px; border:2px solid var(--line);
+  background:var(--panel); color:var(--text); font-family:inherit; margin:10px 0 18px;
+}
+.fcard{
+  display:flex; align-items:center; gap:10px; border:3px solid var(--line);
+  border-radius:12px; padding:12px; margin:8px 0; cursor:pointer; background:var(--panel);
+}
+.fcard.sel{outline:3px solid #fff;}
+.fdot{width:26px; height:26px; border-radius:50%; flex:0 0 auto;}
+#regGo{width:100%; margin-top:16px; font-size:16px; padding:14px; border-radius:12px; border:none; background:var(--gold); color:#221a00; cursor:pointer;}
+#regGo:disabled{opacity:.4;}
+#setupWarn{background:#5a1020; border:2px solid var(--danger); border-radius:10px; padding:12px; font-size:12px; line-height:1.6; display:none; margin-bottom:14px;}
+.toast{
+  position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
+  background:#000d; border:1px solid var(--line); border-radius:10px; padding:8px 16px;
+  font-size:12px; z-index:99; animation:up .2s;
+}
+@media (prefers-reduced-motion:reduce){ *{animation:none !important; transition:none !important;} }
+</style>
+</head>
+<body>
+
+<!-- ===================== 設定（ここを編集） ===================== -->
+<script>
+// ★ Firebaseコンソールで作ったプロジェクトの設定を貼り付けてください（README参照）
+const firebaseConfig = {
+    apiKey: "AIzaSyCs9qjVMzkILytCTSYZQfifEQig--jEeNI",
+    authDomain: "koyo-game.firebaseapp.com",
+    databaseURL: "https://koyo-game-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "koyo-game",
+    storageBucket: "koyo-game.firebasestorage.app",
+    messagingSenderId: "50494269603",
+    appId: "1:50494269603:web:ec7c34aaddae8bb6afb716"
+  };
+
+// ★ βテスト中は true（どこからでもタップ可能）。本番は false にする。
+const BETA_MODE = true;
+// タップ可能になる距離（メートル）
+const TAP_RADIUS_M = 120;
+
+// マップ画像上の位置(x,y は%)と、実際のGPS座標(lat,lng ※本番前に現地で計測して調整)
+const BUILDING_DEFS = [
+ {id:"m_base", name:"機械工学科棟",   ico:"🏫", type:"base", fac:"M", x:36, y:28, lat:35.0952, lng:137.1712},
+ {id:"e_base", name:"電気・電子システム工学科棟", ico:"🏫", type:"base", fac:"E", x:46, y:31, lat:35.0950, lng:137.1717},
+ {id:"i_base", name:"情報工学科棟",   ico:"🏫", type:"base", fac:"I", x:21, y:34, lat:35.0949, lng:137.1704},
+ {id:"c_base", name:"環境都市工学科棟", ico:"🏫", type:"base", fac:"C", x:19, y:24, lat:35.0955, lng:137.1703},
+ {id:"a_base", name:"建築学科棟",     ico:"🏫", type:"base", fac:"A", x:50, y:27, lat:35.0953, lng:137.1720},
+ {id:"library", name:"図書館",        ico:"📚", type:"facility", x:31, y:9,  lat:35.0962, lng:137.1709},
+ {id:"gym1", name:"第1体育館",        ico:"🏀", type:"facility", x:69, y:11, lat:35.0961, lng:137.1729},
+ {id:"gym2", name:"第2体育館",        ico:"🤸", type:"facility", x:7,  y:20, lat:35.0957, lng:137.1697},
+ {id:"cafeteria", name:"食堂",        ico:"🍛", type:"facility", x:31, y:60, lat:35.0938, lng:137.1709},
+ {id:"mono", name:"ものづくりセンター", ico:"🔧", type:"facility", x:33, y:45, lat:35.0944, lng:137.1710},
+ {id:"pool", name:"プール",           ico:"🏊", type:"facility", x:38, y:54, lat:35.0940, lng:137.1713},
+ {id:"track", name:"陸上競技場",      ico:"🏃", type:"facility", x:66, y:57, lat:35.0938, lng:137.1728},
+ {id:"tennis", name:"テニスコート",   ico:"🎾", type:"facility", x:7,  y:38, lat:35.0948, lng:137.1697},
+];
+</script>
+<!-- ============================================================ -->
+
+<div id="reg">
+  <div id="setupWarn">⚠ Firebaseがまだ設定されていません。<br>index.html 上部の firebaseConfig に自分のプロジェクトの設定を貼り付けてください（READMEに手順あり）。設定するまでデータは保存・共有されません。</div>
+  <h1>🍁 こうよう祭 学科対抗陣取り</h1>
+  <p class="note center">プレイヤー名を入力して、陣営（学科）を選ぼう</p>
+  <input id="regName" maxlength="10" placeholder="プレイヤー名（10文字まで）">
+  <div id="regFacs"></div>
+  <button id="regGo" disabled>この陣営で参戦する</button>
+</div>
+
+<div id="hdr">
+  <div class="title">🍁 こうよう祭 陣取り<small id="myName"></small></div>
+  <div class="spacer"></div>
+  <span class="badge" id="facBadge">-</span>
+  <span class="badge" id="coinBadge">💰0</span>
+  <span class="badge" id="koyoBadge">🍁0</span>
+</div>
+
+<div id="main">
+  <div class="tab active" id="tab-map">
+    <div id="mapWrap">
+      <div id="betaBanner">βテスト中：位置に関係なく全アイコンをタップできます</div>
+      <span class="badge" id="geoBadge">📡 位置情報 取得中…</span>
+      <div id="mapInner">
+        <img src="campus.png" alt="豊田高専キャンパスマップ">
+        <div id="icons"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab" id="tab-gacha">
+    <h2>人材ガシャ</h2>
+    <p class="note">100円玉は5分ごとに1枚たまる（最大5枚）</p>
+    <div id="gachaMachine">🎰</div>
+    <div id="coinTimer" class="note"></div>
+    <button id="gachaBtn">💰1枚で回す</button>
+    <div id="gachaResult"></div>
+  </div>
+
+  <div class="tab" id="tab-units">
+    <h2>人材いちらん</h2>
+    <div class="matline" id="itemLine"></div>
+    <div class="matline" id="matLine"></div>
+    <div id="unitList"></div>
+  </div>
+
+  <div class="tab" id="tab-rank">
+    <h2>ランキング</h2>
+    <h3 style="font-size:13px;">学科の倍率（陣営ランキング）</h3>
+    <div id="facRank"></div>
+    <h3 style="font-size:13px;">陣営内ランキング（🍁こうよう）</h3>
+    <div id="pRank" class="plist"></div>
+  </div>
+</div>
+
+<div id="bar">
+  <button data-tab="map" class="active"><span class="ico">🗺</span>マップ</button>
+  <button data-tab="gacha"><span class="ico">🎰</span>ガシャ</button>
+  <button data-tab="units"><span class="ico">👥</span>人材</button>
+  <button data-tab="rank"><span class="ico">🏆</span>ランキング</button>
+</div>
+
+<!-- 建物モーダル -->
+<div class="overlay" id="ovB"><div class="sheet" id="bSheet"></div></div>
+<!-- バトルログ -->
+<div class="overlay" id="ovLog"><div class="sheet">
+  <h2>⚔ バトル <button class="xbtn" onclick="closeOv('ovLog')">閉じる</button></h2>
+  <div id="blog"></div>
+</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* =============== 定数・カタログ =============== */
+const FACTIONS = {
+  M:{name:"機械工学科",  short:"M", color:"#e8394a", tc:"#fff"},
+  E:{name:"電気・電子システム工学科", short:"E", color:"#f2b705", tc:"#222"},
+  I:{name:"情報工学科",  short:"I", color:"#2779e0", tc:"#fff"},
+  C:{name:"環境都市工学科", short:"C", color:"#2fa043", tc:"#fff"},
+  A:{name:"建築学科",    short:"A", color:"#45c8e8", tc:"#123"},
+};
+const MATERIALS = {neji:"🔩ネジ", kairo:"🔌回路", code:"💻コード", mizu:"💧水", mokei:"🏠模型"};
+const FAC_MAT = {M:"neji", E:"kairo", I:"code", C:"mizu", A:"mokei"};
+const ITEMS = {enadori:{name:"⚡エナドリ", heal:40}, pan:{name:"🍞菓子パン", heal:80}, aset:{name:"🍱Aセット", heal:9999}};
+
+// HPはローマ字表記が短いほど高め・攻撃力は画数が多いほど高め、の傾向で調整済み
+const UNIT_POOL = {
+  F:[ {name:"課題未提出学生", hp:60, atk:12, def:2},
+      {name:"居眠り学生",     hp:75, atk:8,  def:3},
+      {name:"停寮学生",       hp:80, atk:9,  def:2},
+      {name:"訓告学生",       hp:65, atk:11, def:3} ],
+  C:[ {name:"無趣味な学生",   hp:110, atk:16, def:6},
+      {name:"専門教科も好きではない学生", hp:95, atk:22, def:5},
+      {name:"ぼっちな学生",   hp:130, atk:15, def:6},
+      {name:"帰宅部学生",     hp:120, atk:17, def:7},
+      {name:"根暗な学生",     hp:105, atk:20, def:8} ],
+  B:[ {name:"コンテスト優勝学生", hp:160, atk:38, def:11},
+      {name:"成績優秀学生",   hp:180, atk:30, def:12},
+      {name:"宿題写させてくれる学生", hp:170, atk:34, def:13},
+      {name:"過去問持ってる学生", hp:200, atk:28, def:14} ],
+  A:[ {name:"阿波賀校長",     hp:280, atk:62, def:22},
+      {name:"早坂学生主事",   hp:320, atk:50, def:20},
+      {name:"平野学先生",     hp:260, atk:65, def:24} ],
+};
+const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
+const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
+
+/* =============== 初期化 =============== */
+const configured = firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY";
+let db=null;
+if(configured){ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
+const INC = n => firebase.database.ServerValue.increment(n);
+
+let PID = localStorage.getItem("koyo_pid");
+if(!PID){ PID = "p_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); localStorage.setItem("koyo_pid",PID); }
+
+let me=null, buildings={}, allPlayers={}, geo=null, curB=null, curSub=null, selUnits=new Set(), selItemUnit=null;
+const $ = id=>document.getElementById(id);
+const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2200); }
+
+/* =============== 建物シード =============== */
+function seedBuildings(){
+  db.ref("buildings").transaction(cur=>{
+    if(cur) return; // 既にあれば何もしない
+    const o={};
+    BUILDING_DEFS.forEach(d=>{
+      o[d.id]={ name:d.name, type:d.type, owner:d.fac||null,
+        hp: d.type==="base"?2000:400, maxHp: d.type==="base"?2000:400,
+        atkLv:1, defLv:1, lastBattleAt:0 };
+    });
+    return o;
+  });
+}
+
+/* =============== 登録 =============== */
+let regFac=null;
+function showReg(){
+  $("reg").classList.add("show");
+  if(!configured) $("setupWarn").style.display="block";
+  const wrap=$("regFacs"); wrap.innerHTML="";
+  Object.entries(FACTIONS).forEach(([k,f])=>{
+    const d=document.createElement("div"); d.className="fcard";
+    d.innerHTML=`<div class="fdot" style="background:${f.color}"></div><div><b>${f.short}</b> ${f.name}</div>`;
+    d.onclick=()=>{ regFac=k; [...wrap.children].forEach(c=>c.classList.remove("sel")); d.classList.add("sel"); checkReg(); };
+    wrap.appendChild(d);
+  });
+  $("regName").oninput=checkReg;
+  function checkReg(){ $("regGo").disabled = !(regFac && $("regName").value.trim()); }
+  $("regGo").onclick=()=>{
+    if(!configured){ alert("先にfirebaseConfigを設定してください（READMEを見てね）"); return; }
+    const starter = rollUnit("F");
+    const p={ name:$("regName").value.trim(), faction:regFac, coins:3, coinAnchor:Date.now(),
+      koyo:0, materials:{neji:0,kairo:0,code:0,mizu:0,mokei:0},
+      items:{enadori:1,pan:0,aset:0}, units:{[starter.id]:starter}, createdAt:Date.now() };
+    db.ref("players/"+PID).set(p).then(()=>{ $("reg").classList.remove("show"); toast("参戦！ スターター人材とエナドリを配布したよ"); });
+  };
+}
+
+/* =============== 購読 =============== */
+function subscribe(){
+  db.ref("players/"+PID).on("value",s=>{
+    me=s.val();
+    if(!me){ showReg(); return; }
+    $("reg").classList.remove("show");
+    renderHdr(); renderUnits(); renderGacha();
+    if(curB) renderBuilding(curB);
+  });
+  db.ref("buildings").on("value",s=>{
+    buildings=s.val()||{};
+    if(!Object.keys(buildings).length) seedBuildings();
+    renderMap(); renderRank();
+    if(curB) renderBuilding(curB);
+  });
+  db.ref("players").on("value",s=>{ allPlayers=s.val()||{}; renderRank(); });
+}
+
+/* =============== 学科の倍率 =============== */
+function multiplier(fac){
+  let m=1;
+  for(const [id,b] of Object.entries(buildings)){
+    if(b.owner!==fac) continue;
+    const base = b.type==="base"?0.3:0.15;
+    const lv = 0.05*((b.atkLv-1)+(b.defLv-1));
+    const hpr = 0.5+0.5*(b.hp/b.maxHp);
+    m += (base+lv)*hpr;
+  }
+  return Math.round(m*100)/100;
+}
+
+/* =============== ヘッダー・コイン =============== */
+function coinState(p){
+  let coins=p.coins??0, anchor=p.coinAnchor??Date.now();
+  if(coins>=COIN_MAX) return {coins:COIN_MAX, anchor:Date.now(), next:0};
+  const gained=Math.floor((Date.now()-anchor)/COIN_MS);
+  const nc=Math.min(COIN_MAX, coins+gained);
+  const na=nc>=COIN_MAX?Date.now():anchor+gained*COIN_MS;
+  return {coins:nc, anchor:na, next: nc>=COIN_MAX?0: COIN_MS-(Date.now()-na)};
+}
+function renderHdr(){
+  if(!me) return;
+  const f=FACTIONS[me.faction];
+  $("myName").textContent=me.name+" さん";
+  $("facBadge").textContent=f.short+"科";
+  $("facBadge").style.background=f.color; $("facBadge").style.color=f.tc;
+  $("coinBadge").textContent="💰"+coinState(me).coins;
+  $("koyoBadge").textContent="🍁"+(me.koyo||0);
+}
+setInterval(()=>{ if(me){ renderHdr(); renderGacha(); if(curB) renderBuilding(curB);} renderMap(); },5000);
+setInterval(()=>{ if(me) renderGachaTimer(); },1000);
+
+/* =============== 位置情報 =============== */
+function startGeo(){
+  if(!navigator.geolocation){ $("geoBadge").textContent="📡 位置情報 非対応"; return; }
+  navigator.geolocation.watchPosition(
+    p=>{ geo={lat:p.coords.latitude, lng:p.coords.longitude}; $("geoBadge").textContent="📡 位置情報 OK"; renderMap(); },
+    ()=>{ $("geoBadge").textContent="📡 位置情報 未許可"; },
+    {enableHighAccuracy:true, maximumAge:10000});
+}
+function distM(a,b){ // ハーバサイン
+  const R=6371000, toR=x=>x*Math.PI/180;
+  const dLat=toR(b.lat-a.lat), dLng=toR(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2 + Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function inRange(def){
+  if(BETA_MODE) return true;
+  if(!geo) return false;
+  return distM(geo,{lat:def.lat,lng:def.lng})<=TAP_RADIUS_M;
+}
+
+/* =============== マップ =============== */
+function renderMap(){
+  const wrap=$("icons"); if(!wrap) return;
+  $("betaBanner").style.display=BETA_MODE?"block":"none";
+  wrap.innerHTML="";
+  BUILDING_DEFS.forEach(def=>{
+    const b=buildings[def.id]; if(!b) return;
+    const el=document.createElement("div");
+    el.className="bicon";
+    el.style.left=def.x+"%"; el.style.top=def.y+"%";
+    const ownerC = b.owner?FACTIONS[b.owner].color:"#888";
+    el.style.borderColor=ownerC;
+    el.style.boxShadow=`0 0 10px ${ownerC}, 0 2px 8px #0009`;
+    el.innerHTML=`${def.ico}<span class="nm">${esc(def.name)}${b.owner?("("+b.owner+")"):""}</span>`;
+    if(Date.now()-(b.lastBattleAt||0)<60000) el.classList.add("battling");
+    if(!inRange(def)) el.classList.add("far");
+    el.onclick=()=>{
+      if(!inRange(def)){ toast("近くまで移動するとタップできるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
+      openBuilding(def.id);
+    };
+    wrap.appendChild(el);
+  });
+}
+
+/* =============== 建物画面 =============== */
+function openBuilding(bid){ curB=bid; curSub=null; selUnits.clear(); $("ovB").classList.add("show"); renderBuilding(bid); }
+function closeOv(id){ $(id).classList.remove("show"); if(id==="ovB") curB=null; }
+$("ovB").onclick=e=>{ if(e.target.id==="ovB") closeOv("ovB"); };
+$("ovLog").onclick=e=>{ if(e.target.id==="ovLog") closeOv("ovLog"); };
+
+function renderBuilding(bid){
+  const b=buildings[bid], def=BUILDING_DEFS.find(d=>d.id===bid);
+  if(!b||!me) return;
+  const mine = b.owner===me.faction;
+  const f = b.owner?FACTIONS[b.owner]:null;
+  const defs = Object.values(b.defenders||{});
+  const hpr = b.hp/b.maxHp;
+  let html=`
+    <h2>${def.ico} ${esc(b.name)}
+      <span class="badge" style="${f?`background:${f.color};color:${f.tc}`:""}">${f?f.short+"科の"+(b.type==="base"?"拠点":"施設"):"中立"}</span>
+      <button class="xbtn" onclick="closeOv('ovB')">閉じる</button></h2>
+    <div class="sub">Lv 攻${b.atkLv}/守${b.defLv} ・ 引きこもり ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
+    <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
+    <div class="note">HP ${b.hp} / ${b.maxHp}</div>`;
+
+  if(defs.length){
+    html+=`<div class="note" style="margin-top:6px;">🛡 防衛中:</div>`;
+    defs.forEach(d=>{ html+=`<div class="note">・${esc(d.name)}（${esc(d.pname)}）HP${d.hp}/${d.maxHp}</div>`; });
+  }
+
+  if(mine){
+    html+=`<div class="row">
+      <button class="bigbtn" onclick="viewDefend()"><span class="ico">🛡</span>防衛</button>
+      <button class="bigbtn" onclick="viewUpgrade()"><span class="ico">⬆</span>強化</button>
+      <button class="bigbtn" onclick="viewRation()"><span class="ico">🎁</span>配給</button>
+    </div><div id="bSub"></div>`;
+  }else{
+    html+=`<div class="row"><button class="bigbtn" onclick="viewAttack()"><span class="ico">⚔</span>攻撃する</button></div><div id="bSub"></div>`;
+  }
+  $("bSheet").innerHTML=html;
+  if(curSub && $("bSub")) curSub();
+}
+
+/* ---- 防衛 ---- */
+function viewDefend(){
+  curSub=viewDefend;
+  const b=buildings[curB];
+  const myDef=(b.defenders||{})[PID];
+  let html=`<h3 style="font-size:13px;">🛡 防衛（この建物に1人1体まで）</h3>`;
+  if(myDef){
+    html+=`<div class="card"><div class="top">配置中: <b>${esc(myDef.name)}</b></div>
+      <div class="stat">HP ${myDef.hp}/${myDef.maxHp}</div>
+      <button class="mini" onclick="recallDef()">呼び戻す</button></div>`;
+  }else{
+    const list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
+    if(!list.length) html+=`<p class="note">配置できる人材がいない（HP0か防衛中）。ガシャで引くか回復しよう。</p>`;
+    list.forEach(([id,u])=>{
+      html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b></div>
+        <div class="stat">HP ${u.hp}/${u.maxHp}　攻${u.atk}　守${u.def}</div>
+        <button class="mini" onclick="placeDef('${id}')">引きこもりとして置く</button></div>`;
+    });
+  }
+  $("bSub").innerHTML=html;
+}
+function placeDef(uid){
+  const u=me.units[uid], b=buildings[curB];
+  if(!u||u.hp<=0||u.defendingAt) return;
+  if((b.defenders||{})[PID]){ toast("この建物にはもう置いているよ"); return; }
+  const up={};
+  up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:u.atk, def:u.def, pname:me.name};
+  up[`players/${PID}/units/${uid}/defendingAt`]=curB;
+  db.ref().update(up).then(()=>toast("引きこもり配置！"));
+}
+function recallDef(){
+  const b=buildings[curB], d=(b.defenders||{})[PID]; if(!d) return;
+  const up={};
+  up[`buildings/${curB}/defenders/${PID}`]=null;
+  up[`players/${PID}/units/${d.unitId}/defendingAt`]=null;
+  up[`players/${PID}/units/${d.unitId}/hp`]=d.hp;
+  db.ref().update(up).then(()=>toast("呼び戻した"));
+}
+
+/* ---- 強化 ---- */
+function upCost(kind,lv){
+  return kind==="atk" ? {neji:lv*2, kairo:lv*2, code:lv} : {mizu:lv*2, mokei:lv*2, code:lv};
+}
+function costStr(c){ return Object.entries(c).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" "); }
+function canPay(c){ return Object.entries(c).every(([k,v])=>(me.materials?.[k]||0)>=v); }
+function viewUpgrade(){
+  curSub=viewUpgrade;
+  const b=buildings[curB];
+  const ca=upCost("atk",b.atkLv), cd=upCost("def",b.defLv);
+  $("bSub").innerHTML=`<h3 style="font-size:13px;">⬆ 強化（素材を使う／こうよう🍁がもらえる／学科の倍率UP）</h3>
+    <div class="card"><b>攻撃 Lv${b.atkLv} → ${b.atkLv+1}</b><div class="note">${costStr(ca)}</div>
+      <button class="mini" ${b.atkLv>=MAX_LV||!canPay(ca)?"disabled":""} onclick="doUpgrade('atk')">強化する</button></div>
+    <div class="card"><b>守り Lv${b.defLv} → ${b.defLv+1}</b><div class="note">${costStr(cd)}</div>
+      <button class="mini" ${b.defLv>=MAX_LV||!canPay(cd)?"disabled":""} onclick="doUpgrade('def')">強化する</button></div>
+    <div class="note">所持素材: ${Object.entries(MATERIALS).map(([k,n])=>n+"×"+(me.materials?.[k]||0)).join("　")}</div>`;
+}
+function doUpgrade(kind){
+  const b=buildings[curB];
+  const lv = kind==="atk"?b.atkLv:b.defLv;
+  const c=upCost(kind,lv);
+  if(lv>=MAX_LV||!canPay(c)) return;
+  const up={};
+  Object.entries(c).forEach(([k,v])=>up[`players/${PID}/materials/${k}`]=INC(-v));
+  up[`buildings/${curB}/${kind==="atk"?"atkLv":"defLv"}`]=lv+1;
+  up[`players/${PID}/koyo`]=INC(lv*2);
+  db.ref().update(up).then(()=>toast(`強化成功！🍁こうよう+${lv*2}`));
+}
+
+/* ---- 配給 ---- */
+function rationItem(bid){
+  if(bid==="cafeteria") return "aset";
+  const slot=Math.floor(Date.now()/RATION_MS);
+  let h=0; for(const ch of bid) h+=ch.charCodeAt(0);
+  return (slot+h)%2===0?"enadori":"pan";
+}
+function viewRation(){
+  curSub=viewRation;
+  const last=(me.rations||{})[curB]||0;
+  const left=RATION_MS-(Date.now()-last);
+  const it=rationItem(curB);
+  const amt = it==="aset" ? Math.max(1,Math.floor(multiplier(me.faction)/2)) : Math.floor(multiplier(me.faction));
+  const what=`${ITEMS[it].name} ×${amt}`;
+  if(left>0){
+    const m=Math.ceil(left/60000);
+    $("bSub").innerHTML=`<div class="card center">🎁 次の配給まで あと約${m}分<br><span class="note">受け取れるもの: ${what}（学科の倍率で増える）</span></div>`;
+  }else{
+    $("bSub").innerHTML=`<div class="card center">🎁 配給が届いてる！<br><b>${what}</b><br>
+      <button class="mini" onclick="claimRation()">受け取る</button></div>`;
+  }
+}
+function claimRation(){
+  const last=(me.rations||{})[curB]||0;
+  if(Date.now()-last<RATION_MS) return;
+  const it=rationItem(curB);
+  const amt = it==="aset" ? Math.max(1,Math.floor(multiplier(me.faction)/2)) : Math.floor(multiplier(me.faction));
+  const up={};
+  up[`players/${PID}/items/${it}`]=INC(amt);
+  up[`players/${PID}/rations/${curB}`]=Date.now();
+  db.ref().update(up).then(()=>{ toast(`${ITEMS[it].name}×${amt} を受け取った！`); setTimeout(viewRation,300); });
+}
+
+/* ---- 攻撃 ---- */
+function viewAttack(){
+  curSub=viewAttack;
+  const list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
+  let html=`<h3 style="font-size:13px;">⚔ 出撃メンバーを選ぶ（最大6体）</h3>`;
+  if(!list.length) html+=`<p class="note">出撃できる人材がいない。ガシャで引くか回復しよう。</p>`;
+  list.forEach(([id,u])=>{
+    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b>
+      <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${u.atk}　守${u.def}</div></div>`;
+  });
+  html+=`<button class="bigbtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button>`;
+  $("bSub").innerHTML=html;
+}
+function togSel(id){
+  if(selUnits.has(id)) selUnits.delete(id);
+  else{ if(selUnits.size>=6){ toast("6体までだよ"); return; } selUnits.add(id); }
+  viewAttack();
+}
+
+/* =============== バトル =============== */
+function startBattle(){
+  const bid=curB;
+  db.ref("buildings/"+bid).get().then(snap=>{
+    const b=snap.val(); if(!b) return;
+    if(b.owner===me.faction){ toast("いつの間にか自陣営になってた！"); renderBuilding(bid); return; }
+    runBattle(bid,b);
+  });
+}
+function runBattle(bid,b){
+  const log=[];
+  const A=[...selUnits].map(id=>({id, ...me.units[id]})).filter(u=>u.hp>0);
+  const D=Object.values(b.defenders||{}).map(d=>({...d}));
+  // 拠点は時間で自然回復（2%/分）
+  let bhp=b.hp;
+  if(b.type==="base"){
+    const regen=Math.floor((Date.now()-(b.lastBattleAt||Date.now()))/60000)*Math.floor(b.maxHp*0.02);
+    bhp=Math.min(b.maxHp, bhp+Math.max(0,regen));
+  }
+  const bDef=3*b.defLv, bAtk=(b.type==="base"?8:5)+3*b.atkLv;
+  const defFacMult = b.owner?multiplier(b.owner):1;
+  let mats=0, kills=0, buildingHits=0, captured=false;
+  const koyoGain={}; // 防衛側プレイヤーへのこうよう
+
+  log.push({c:"sys",t:`⚔ ${b.name} への攻撃開始！（防衛${D.length}体）`});
+  for(let r=1;r<=30;r++){
+    // 攻撃側ターン（先攻）
+    for(const u of A){
+      if(u.hp<=0) continue;
+      const tgt=D.find(d=>d.hp>0);
+      if(tgt){
+        const dmg=Math.max(1,u.atk-tgt.def);
+        tgt.hp-=dmg;
+        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ`});
+        if(tgt.hp<=0){ tgt.hp=0; kills++; mats+=2; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
+      }else{
+        const dmg=Math.max(1,u.atk-bDef);
+        buildingHits++; mats+=1;
+        if(b.type==="facility"){
+          bhp-=dmg;
+          log.push({c:"atk",t:`${u.name} → 建物に ${dmg}ダメージ`});
+          if(bhp<=0){ captured=true; break; }
+        }else{
+          bhp=Math.max(1,bhp-dmg); // 拠点HPは0にならない
+          log.push({c:"atk",t:`${u.name} → 拠点に ${dmg}ダメージ`});
+        }
+      }
+    }
+    if(captured) break;
+    // 防衛側ターン
+    const aliveA=A.filter(u=>u.hp>0);
+    if(!aliveA.length) break;
+    for(const d of D){
+      if(d.hp<=0) continue;
+      const t=aliveA[Math.floor(Math.random()*aliveA.length)];
+      if(!t||t.hp<=0) continue;
+      const dmg=Math.max(1,d.atk-t.def);
+      t.hp-=dmg;
+      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ`});
+      if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
+    }
+    if(!D.some(d=>d.hp>0)){
+      // 建物の反撃
+      const t2=A.filter(u=>u.hp>0);
+      if(t2.length){
+        const t=t2[Math.floor(Math.random()*t2.length)];
+        const dmg=Math.max(1,bAtk-t.def);
+        t.hp=Math.max(0,t.hp-dmg);
+        log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${dmg}ダメージ`});
+        if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
+      }
+    }
+    if(!A.some(u=>u.hp>0)) { log.push({c:"sys",t:"全滅…撤退！"}); break; }
+  }
+
+  // 素材ドロップ（倒した数＆建物ヒット×守備側倍率）
+  const drop={};
+  const total=Math.max(1,Math.floor(mats*defFacMult));
+  const prefer=b.owner?FAC_MAT[b.owner]:null;
+  const keys=Object.keys(MATERIALS);
+  for(let i=0;i<total;i++){
+    let k;
+    if(prefer && Math.random()<0.6) k=prefer;
+    else k=keys[Math.floor(Math.random()*keys.length)];
+    drop[k]=(drop[k]||0)+1;
+  }
+  log.push({c:"sys",t:"🎒 素材: "+Object.entries(drop).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" ")});
+  if(captured) log.push({c:"sys",t:`🚩 ${b.name} を ${FACTIONS[me.faction].short}科が制圧！（HP全回復）`});
+
+  /* --- 書き込み --- */
+  const up={};
+  up[`buildings/${bid}/lastBattleAt`]=Date.now();
+  if(captured){
+    up[`buildings/${bid}/owner`]=me.faction;
+    up[`buildings/${bid}/hp`]=b.maxHp;
+    up[`buildings/${bid}/defenders`]=null;
+    // 全防衛ユニットを持ち主へ返す（HP0）
+    D.forEach(d=>{
+      up[`players/${d.pid}/units/${d.unitId}/hp`]=0;
+      up[`players/${d.pid}/units/${d.unitId}/defendingAt`]=null;
+    });
+  }else{
+    up[`buildings/${bid}/hp`]=Math.max(b.type==="base"?1:1,bhp);
+    D.forEach(d=>{
+      if(d.hp<=0){
+        up[`buildings/${bid}/defenders/${d.pid}`]=null;
+        up[`players/${d.pid}/units/${d.unitId}/hp`]=0;
+        up[`players/${d.pid}/units/${d.unitId}/defendingAt`]=null;
+      }else{
+        up[`buildings/${bid}/defenders/${d.pid}/hp`]=d.hp;
+      }
+    });
+  }
+  A.forEach(u=>{ up[`players/${PID}/units/${u.id}/hp`]=Math.max(0,u.hp); });
+  Object.entries(drop).forEach(([k,v])=>{ up[`players/${PID}/materials/${k}`]=INC(v); });
+  Object.entries(koyoGain).forEach(([pid,v])=>{ up[`players/${pid}/koyo`]=INC(v); });
+  db.ref().update(up);
+
+  selUnits.clear();
+  showLog(log);
+}
+function showLog(log){
+  const el=$("blog"); el.innerHTML="";
+  $("ovLog").classList.add("show");
+  let i=0;
+  const tick=()=>{
+    if(i>=log.length) return;
+    const l=log[i++];
+    const d=document.createElement("div"); d.className=l.c; d.textContent=l.t;
+    el.appendChild(d); el.scrollTop=el.scrollHeight;
+    setTimeout(tick, 120);
+  };
+  tick();
+}
+
+/* =============== ガシャ =============== */
+function rollUnit(forceRank){
+  let rank=forceRank;
+  if(!rank){
+    let r=Math.random()*100;
+    for(const [k,p] of GACHA_RATE){ if(r<p){rank=k;break;} r-=p; }
+    rank=rank||"F";
+  }
+  const pool=UNIT_POOL[rank];
+  const base=pool[Math.floor(Math.random()*pool.length)];
+  const v=()=>0.9+Math.random()*0.2;
+  const hp=Math.round(base.hp*v());
+  return { id:"u_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    name:base.name, rank, hp, maxHp:hp, atk:Math.round(base.atk*v()), def:Math.round(base.def*v()), defendingAt:null };
+}
+function renderGacha(){
+  if(!me) return;
+  const st=coinState(me);
+  $("gachaBtn").disabled = st.coins<1;
+  renderGachaTimer();
+}
+function renderGachaTimer(){
+  if(!me) return;
+  const st=coinState(me);
+  if(st.coins>=COIN_MAX) $("coinTimer").textContent="💰 満タン（5枚）";
+  else{
+    const s=Math.ceil(st.next/1000);
+    $("coinTimer").textContent=`💰${st.coins}枚 ／ 次の100円玉まで ${Math.floor(s/60)}分${s%60}秒`;
+  }
+}
+$("gachaBtn").onclick=()=>{
+  const st=coinState(me);
+  if(st.coins<1) return;
+  const u=rollUnit();
+  const up={};
+  up[`players/${PID}/coins`]=st.coins-1;
+  up[`players/${PID}/coinAnchor`]= st.coins>=COIN_MAX ? Date.now() : st.anchor;
+  up[`players/${PID}/units/${u.id}`]=u;
+  $("gachaMachine").classList.add("spin");
+  $("gachaResult").innerHTML="";
+  db.ref().update(up).then(()=>{
+    setTimeout(()=>{
+      $("gachaMachine").classList.remove("spin");
+      $("gachaResult").innerHTML=`<div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b></div>
+        <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>`;
+    },900);
+  });
+};
+
+/* =============== 人材タブ =============== */
+function renderUnits(){
+  if(!me) return;
+  $("itemLine").innerHTML="回復: "+Object.entries(ITEMS).map(([k,it])=>`${it.name}×${me.items?.[k]||0}`).join("　");
+  $("matLine").innerHTML="素材: "+Object.entries(MATERIALS).map(([k,n])=>`${n}×${me.materials?.[k]||0}`).join("　");
+  const wrap=$("unitList"); wrap.innerHTML="";
+  const units=Object.entries(me.units||{}).sort((a,b)=>"AFBC".indexOf(a[1].rank)-"AFBC".indexOf(b[1].rank));
+  const order={A:0,B:1,C:2,F:3};
+  units.sort((a,b)=>order[a[1].rank]-order[b[1].rank]);
+  if(!units.length) wrap.innerHTML='<p class="note">まだ人材がいない。ガシャを回そう！</p>';
+  units.forEach(([id,u])=>{
+    const hpr=u.hp/u.maxHp;
+    const d=document.createElement("div"); d.className="card";
+    const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
+    d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b>
+        ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}</div>
+      <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}　守 ${u.def}</div>
+      ${u.defendingAt?'<div class="note">回復するには呼び戻してね</div>':
+        `<div class="row" style="margin:6px 0 0">${Object.entries(ITEMS).map(([k,it])=>
+          `<button class="mini" ${(me.items?.[k]||0)<1||u.hp>=u.maxHp?"disabled":""} onclick="useItem('${id}','${k}')">${it.name}</button>`).join("")}</div>`}`;
+    wrap.appendChild(d);
+  });
+}
+function useItem(uid,ik){
+  const u=me.units[uid];
+  if(!u||u.defendingAt||(me.items?.[ik]||0)<1||u.hp>=u.maxHp) return;
+  const nh=Math.min(u.maxHp, u.hp+ITEMS[ik].heal);
+  const up={};
+  up[`players/${PID}/units/${uid}/hp`]=nh;
+  up[`players/${PID}/items/${ik}`]=INC(-1);
+  db.ref().update(up).then(()=>toast(`${u.name} が回復！(${u.hp}→${nh})`));
+}
+
+/* =============== ランキング =============== */
+function renderRank(){
+  if(!$("facRank")) return;
+  const facs=Object.keys(FACTIONS).map(k=>({k, m:multiplier(k)})).sort((a,b)=>b.m-a.m);
+  const max=Math.max(...facs.map(f=>f.m),1.01);
+  $("facRank").innerHTML=facs.map((f,i)=>{
+    const F=FACTIONS[f.k];
+    return `<div style="margin:6px 0; font-size:12px;">${i+1}位 <b style="color:${F.color}">${F.short}科</b> ×${f.m.toFixed(2)}
+      <div class="fbar"><i style="width:${f.m/max*100}%; background:${F.color}"></i></div></div>`;
+  }).join("");
+  if(!me){ $("pRank").innerHTML=""; return; }
+  const mates=Object.entries(allPlayers).filter(([id,p])=>p.faction===me.faction)
+    .sort((a,b)=>(b[1].koyo||0)-(a[1].koyo||0));
+  $("pRank").innerHTML = mates.length
+    ? mates.map(([id,p],i)=>`<div class="${id===PID?"me":""}">${i+1}位 ${esc(p.name)}　🍁${p.koyo||0}</div>`).join("")
+    : '<p class="note">まだ仲間がいない…友達を誘おう！</p>';
+}
+
+/* =============== タブ =============== */
+document.querySelectorAll("#bar button").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll("#bar button").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    $("tab-"+b.dataset.tab).classList.add("active");
+  };
+});
+
+/* =============== 起動 =============== */
+if(!configured){
+  showReg();
+}else{
+  db.ref("players/"+PID).get().then(s=>{
+    if(!s.exists()) showReg();
+    subscribe();
+  });
+}
+startGeo();
+</script>
+</body>
+</html>
