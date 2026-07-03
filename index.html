@@ -482,7 +482,7 @@ function seedBuildings(){
     BUILDING_DEFS.forEach(d=>{
       o[d.id]={ name:d.name, type:d.type, owner:d.fac||null,
         hp: d.type==="base"?2000:400, maxHp: d.type==="base"?2000:400,
-        atkLv:1, defLv:1, lastBattleAt:0 };
+        atkLv:1, defLv:1, hatakeLv:1, lastBattleAt:0 };
     });
     return o;
   });
@@ -650,7 +650,7 @@ function renderBuilding(bid){
     <h2>${def.ico} ${esc(b.name)}
       <span class="badge" style="${f?`background:${f.color};color:${f.tc}`:""}">${f?f.short+"科の"+(b.type==="base"?"拠点":"施設"):"中立"}</span>
       <button class="xbtn" onclick="closeOv('ovB')">閉じる</button></h2>
-    <div class="sub">Lv 攻${b.atkLv}/守${b.defLv} ・ 引きこもり ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
+    <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 引きこもり ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
     <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
     <div class="note">HP ${b.hp} / ${b.maxHp}</div>`;
 
@@ -713,29 +713,35 @@ function recallDef(){
 
 /* ---- 強化 ---- */
 function upCost(kind,lv){
-  return kind==="atk" ? {neji:lv*2, kairo:lv*2, code:lv} : {mizu:lv*2, mokei:lv*2, code:lv};
+  if(kind==="atk") return {neji:lv*2, kairo:lv*2, code:lv};
+  if(kind==="def") return {mizu:lv*2, mokei:lv*2, code:lv};
+  return {mizu:lv*2, neji:lv*2, mokei:lv}; // hatake（畑）
 }
 function costStr(c){ return Object.entries(c).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" "); }
 function canPay(c){ return Object.entries(c).every(([k,v])=>(me.materials?.[k]||0)>=v); }
 function viewUpgrade(){
   curSub=viewUpgrade;
   const b=buildings[curB];
-  const ca=upCost("atk",b.atkLv), cd=upCost("def",b.defLv);
-  $("bSub").innerHTML=`<h3 style="font-size:13px;">⬆ 強化（素材を使う／こうよう🍁がもらえる／学科の倍率UP）</h3>
-    <div class="card"><b>攻撃 Lv${b.atkLv} → ${b.atkLv+1}</b><div class="note">${costStr(ca)}</div>
+  const hLv=b.hatakeLv||1;
+  const ca=upCost("atk",b.atkLv), cd=upCost("def",b.defLv), ch=upCost("hatake",hLv);
+  $("bSub").innerHTML=`<h3 style="font-size:13px;">⬆ 強化（素材を使う／こうよう🍁がもらえる）</h3>
+    <div class="card"><b>攻撃 Lv${b.atkLv} → ${b.atkLv+1}</b><div class="note">${costStr(ca)}　学科の倍率UP</div>
       <button class="mini" ${b.atkLv>=MAX_LV||!canPay(ca)?"disabled":""} onclick="doUpgrade('atk')">強化する</button></div>
-    <div class="card"><b>守り Lv${b.defLv} → ${b.defLv+1}</b><div class="note">${costStr(cd)}</div>
+    <div class="card"><b>守り Lv${b.defLv} → ${b.defLv+1}</b><div class="note">${costStr(cd)}　学科の倍率UP</div>
       <button class="mini" ${b.defLv>=MAX_LV||!canPay(cd)?"disabled":""} onclick="doUpgrade('def')">強化する</button></div>
+    <div class="card"><b>🌾畑 Lv${hLv} → ${hLv+1}</b><div class="note">${costStr(ch)}　この建物の配給量UP</div>
+      <button class="mini" ${hLv>=MAX_LV||!canPay(ch)?"disabled":""} onclick="doUpgrade('hatake')">強化する</button></div>
     <div class="note">所持素材: ${Object.entries(MATERIALS).map(([k,n])=>n+"×"+(me.materials?.[k]||0)).join("　")}</div>`;
 }
 function doUpgrade(kind){
   const b=buildings[curB];
-  const lv = kind==="atk"?b.atkLv:b.defLv;
+  const lvKey={atk:"atkLv", def:"defLv", hatake:"hatakeLv"}[kind];
+  const lv = b[lvKey]||1;
   const c=upCost(kind,lv);
   if(lv>=MAX_LV||!canPay(c)) return;
   const up={};
   Object.entries(c).forEach(([k,v])=>up[`players/${PID}/materials/${k}`]=INC(-v));
-  up[`buildings/${curB}/${kind==="atk"?"atkLv":"defLv"}`]=lv+1;
+  up[`buildings/${curB}/${lvKey}`]=lv+1;
   up[`players/${PID}/koyo`]=INC(lv*2);
   up[`rankings/${PID}/koyo`]=INC(lv*2);
   db.ref().update(up).then(()=>toast(`強化成功！🍁こうよう+${lv*2}`));
@@ -748,16 +754,20 @@ function rationItem(bid){
   let h=0; for(const ch of bid) h+=ch.charCodeAt(0);
   return (slot+h)%2===0?"enadori":"pan";
 }
+function rationAmt(bid,it){
+  const hLv=buildings[bid]?.hatakeLv||1;
+  return it==="aset" ? Math.max(1,Math.floor(hLv/2)) : hLv;
+}
 function viewRation(){
   curSub=viewRation;
   const last=(me.rations||{})[curB]||0;
   const left=RATION_MS-(Date.now()-last);
   const it=rationItem(curB);
-  const amt = it==="aset" ? Math.max(1,Math.floor(multiplier(me.faction)/2)) : Math.floor(multiplier(me.faction));
+  const amt = rationAmt(curB,it);
   const what=`${ITEMS[it].name} ×${amt}`;
   if(left>0){
     const m=Math.ceil(left/60000);
-    $("bSub").innerHTML=`<div class="card center">🎁 次の配給まで あと約${m}分<br><span class="note">受け取れるもの: ${what}（学科の倍率で増える）</span></div>`;
+    $("bSub").innerHTML=`<div class="card center">🎁 次の配給まで あと約${m}分<br><span class="note">受け取れるもの: ${what}（🌾畑Lvで増える）</span></div>`;
   }else{
     $("bSub").innerHTML=`<div class="card center">🎁 配給が届いてる！<br><b>${what}</b><br>
       <button class="mini" onclick="claimRation()">受け取る</button></div>`;
@@ -767,7 +777,7 @@ function claimRation(){
   const last=(me.rations||{})[curB]||0;
   if(Date.now()-last<RATION_MS) return;
   const it=rationItem(curB);
-  const amt = it==="aset" ? Math.max(1,Math.floor(multiplier(me.faction)/2)) : Math.floor(multiplier(me.faction));
+  const amt = rationAmt(curB,it);
   const up={};
   up[`players/${PID}/items/${it}`]=INC(amt);
   up[`players/${PID}/rations/${curB}`]=Date.now();
