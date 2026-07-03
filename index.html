@@ -182,14 +182,14 @@ button{font-family:inherit;}
 <script>
 // ★ Firebaseコンソールで作ったプロジェクトの設定を貼り付けてください（README参照）
 const firebaseConfig = {
-    apiKey: "AIzaSyCs9qjVMzkILytCTSYZQfifEQig--jEeNI",
-    authDomain: "koyo-game.firebaseapp.com",
-    databaseURL: "https://koyo-game-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "koyo-game",
-    storageBucket: "koyo-game.firebasestorage.app",
-    messagingSenderId: "50494269603",
-    appId: "1:50494269603:web:ec7c34aaddae8bb6afb716"
-  };
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "your-project.firebaseapp.com",
+  databaseURL: "https://your-project-default-rtdb.firebaseio.com",
+  projectId: "your-project",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "0",
+  appId: "0"
+};
 
 // ★ βテスト中は true（どこからでもタップ可能）。本番は false にする。
 const BETA_MODE = true;
@@ -261,7 +261,7 @@ const BUILDING_DEFS = [
   </div>
 
   <div class="tab" id="tab-rank">
-    <h2>ランキング</h2>
+    <h2>ランキング <button class="mini" onclick="fetchRank(); toast('ランキングを更新中…')">🔄 更新</button></h2>
     <h3 style="font-size:13px;">学科の倍率（陣営ランキング）</h3>
     <div id="facRank"></div>
     <h3 style="font-size:13px;">陣営内ランキング（🍁こうよう）</h3>
@@ -330,7 +330,7 @@ const INC = n => firebase.database.ServerValue.increment(n);
 let PID = localStorage.getItem("koyo_pid");
 if(!PID){ PID = "p_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); localStorage.setItem("koyo_pid",PID); }
 
-let me=null, buildings={}, allPlayers={}, geo=null, curB=null, curSub=null, selUnits=new Set(), selItemUnit=null;
+let me=null, buildings={}, rankData={}, geo=null, curB=null, curSub=null, selUnits=new Set(), rankSynced=false;
 const $ = id=>document.getElementById(id);
 const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2200); }
@@ -369,7 +369,10 @@ function showReg(){
     const p={ name:$("regName").value.trim(), faction:regFac, coins:3, coinAnchor:Date.now(),
       koyo:0, materials:{neji:0,kairo:0,code:0,mizu:0,mokei:0},
       items:{enadori:1,pan:0,aset:0}, units:{[starter.id]:starter}, createdAt:Date.now() };
-    db.ref("players/"+PID).set(p).then(()=>{ $("reg").classList.remove("show"); toast("参戦！ スターター人材とエナドリを配布したよ"); });
+    const up={};
+    up["players/"+PID]=p;
+    up["rankings/"+PID]={name:p.name, faction:p.faction, koyo:0};
+    db.ref().update(up).then(()=>{ $("reg").classList.remove("show"); toast("参戦！ スターター人材とエナドリを配布したよ"); });
   };
 }
 
@@ -379,6 +382,7 @@ function subscribe(){
     me=s.val();
     if(!me){ showReg(); return; }
     $("reg").classList.remove("show");
+    ensureRankNode();
     renderHdr(); renderUnits(); renderGacha();
     if(curB) renderBuilding(curB);
   });
@@ -388,7 +392,28 @@ function subscribe(){
     renderMap(); renderRank();
     if(curB) renderBuilding(curB);
   });
-  db.ref("players").on("value",s=>{ allPlayers=s.val()||{}; renderRank(); });
+}
+// 既存プレイヤーの/rankingsノードを自己修復（旧バージョンからの移行用・初回のみ）
+function ensureRankNode(){
+  if(rankSynced||!me) return;
+  rankSynced=true;
+  db.ref("rankings/"+PID).get().then(s=>{
+    const r=s.val();
+    if(!r) db.ref("rankings/"+PID).set({name:me.name, faction:me.faction, koyo:me.koyo||0});
+    else if(r.name!==me.name||r.faction!==me.faction)
+      db.ref("rankings/"+PID).update({name:me.name, faction:me.faction});
+  });
+}
+// ランキングは常時購読せず、タブを開いた時だけ1回取得（転送量の節約）
+let rankFetching=false;
+function fetchRank(){
+  if(!db||rankFetching) return;
+  rankFetching=true;
+  db.ref("rankings").get().then(s=>{
+    rankData=s.val()||{};
+    rankFetching=false;
+    renderRank();
+  }).catch(()=>{rankFetching=false;});
 }
 
 /* =============== 学科の倍率 =============== */
@@ -573,6 +598,7 @@ function doUpgrade(kind){
   Object.entries(c).forEach(([k,v])=>up[`players/${PID}/materials/${k}`]=INC(-v));
   up[`buildings/${curB}/${kind==="atk"?"atkLv":"defLv"}`]=lv+1;
   up[`players/${PID}/koyo`]=INC(lv*2);
+  up[`rankings/${PID}/koyo`]=INC(lv*2);
   db.ref().update(up).then(()=>toast(`強化成功！🍁こうよう+${lv*2}`));
 }
 
@@ -744,7 +770,10 @@ function runBattle(bid,b){
   }
   A.forEach(u=>{ up[`players/${PID}/units/${u.id}/hp`]=Math.max(0,u.hp); });
   Object.entries(drop).forEach(([k,v])=>{ up[`players/${PID}/materials/${k}`]=INC(v); });
-  Object.entries(koyoGain).forEach(([pid,v])=>{ up[`players/${pid}/koyo`]=INC(v); });
+  Object.entries(koyoGain).forEach(([pid,v])=>{
+    up[`players/${pid}/koyo`]=INC(v);
+    up[`rankings/${pid}/koyo`]=INC(v);
+  });
   db.ref().update(up);
 
   selUnits.clear();
@@ -858,7 +887,7 @@ function renderRank(){
       <div class="fbar"><i style="width:${f.m/max*100}%; background:${F.color}"></i></div></div>`;
   }).join("");
   if(!me){ $("pRank").innerHTML=""; return; }
-  const mates=Object.entries(allPlayers).filter(([id,p])=>p.faction===me.faction)
+  const mates=Object.entries(rankData).filter(([id,p])=>p.faction===me.faction)
     .sort((a,b)=>(b[1].koyo||0)-(a[1].koyo||0));
   $("pRank").innerHTML = mates.length
     ? mates.map(([id,p],i)=>`<div class="${id===PID?"me":""}">${i+1}位 ${esc(p.name)}　🍁${p.koyo||0}</div>`).join("")
@@ -872,6 +901,7 @@ document.querySelectorAll("#bar button").forEach(b=>{
     document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
     b.classList.add("active");
     $("tab-"+b.dataset.tab).classList.add("active");
+    if(b.dataset.tab==="rank") fetchRank();
   };
 });
 
