@@ -152,14 +152,27 @@ button{font-family:inherit;}
 #blog{font-size:12px; line-height:1.7; max-height:45vh; overflow:auto; background:#0007; border-radius:8px; padding:10px; border:1px solid var(--line);}
 #blog .atk{color:#ffb1b1;} #blog .def{color:#a9c7ff;} #blog .sys{color:var(--gold);}
 
-/* ===== register ===== */
-#reg{position:fixed; inset:0; background:var(--bg); z-index:50; overflow:auto; padding:24px 16px; display:none;}
-#reg.show{display:block;}
-#reg h1{font-size:20px; text-align:center;}
-#reg input{
+/* ===== register / login ===== */
+#reg,#login{position:fixed; inset:0; background:var(--bg); z-index:50; overflow:auto; padding:24px 16px; display:none;}
+#reg.show,#login.show{display:block;}
+#reg h1,#login h1{font-size:20px; text-align:center;}
+#reg input,#login input{
   width:100%; font-size:16px; padding:10px; border-radius:10px; border:2px solid var(--line);
   background:var(--panel); color:var(--text); font-family:inherit; margin:10px 0 18px;
 }
+#login{z-index:60;}
+#login input{margin:6px 0;}
+#login .inner{max-width:420px; margin:0 auto;}
+.authbtn{
+  width:100%; margin-top:10px; font-size:15px; padding:13px; border-radius:12px;
+  border:2px solid var(--line); background:var(--panel2); color:var(--text); cursor:pointer;
+}
+.authbtn.primary{background:var(--gold); color:#221a00; border-color:var(--gold);}
+.authbtn:disabled{opacity:.4;}
+#loginErr{display:none; background:#5a1020; border:2px solid var(--danger); border-radius:10px; padding:10px; font-size:12px; line-height:1.6; margin-bottom:12px;}
+.divider{text-align:center; color:var(--dim); font-size:11px; margin:16px 0 2px;}
+#resetLink{margin-top:18px; text-decoration:underline; cursor:pointer;}
+#logoutBtn{cursor:pointer; color:var(--dim);}
 .fcard{
   display:flex; align-items:center; gap:10px; border:3px solid var(--line);
   border-radius:12px; padding:12px; margin:8px 0; cursor:pointer; background:var(--panel);
@@ -216,6 +229,21 @@ const BUILDING_DEFS = [
 </script>
 <!-- ============================================================ -->
 
+<div id="login">
+  <div class="inner">
+    <h1>🍁 こうよう祭 学科対抗陣取り</h1>
+    <p class="note center">ログインすると、どの端末からでも同じデータで遊べるよ</p>
+    <div id="loginErr"></div>
+    <input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email">
+    <input id="authPass" type="password" placeholder="パスワード（6文字以上）" autocomplete="current-password">
+    <button id="loginBtn" class="authbtn primary">ログイン</button>
+    <button id="signupBtn" class="authbtn">新規登録（アカウント作成）</button>
+    <div class="divider">─── または ───</div>
+    <button id="googleBtn" class="authbtn">🌐 Googleでログイン</button>
+    <p class="note center" id="resetLink">パスワードを忘れた場合はこちら</p>
+  </div>
+</div>
+
 <div id="reg">
   <div id="setupWarn">⚠ Firebaseがまだ設定されていません。<br>index.html 上部の firebaseConfig に自分のプロジェクトの設定を貼り付けてください（READMEに手順あり）。設定するまでデータは保存・共有されません。</div>
   <h1>🍁 こうよう祭 学科対抗陣取り</h1>
@@ -231,6 +259,7 @@ const BUILDING_DEFS = [
   <span class="badge" id="facBadge">-</span>
   <span class="badge" id="coinBadge">💰0</span>
   <span class="badge" id="koyoBadge">🍁0</span>
+  <button class="badge" id="logoutBtn" title="ログアウト">⏻</button>
 </div>
 
 <div id="main">
@@ -289,6 +318,7 @@ const BUILDING_DEFS = [
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 /* =============== 定数・カタログ =============== */
 const FACTIONS = {
@@ -340,17 +370,101 @@ const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
 
 /* =============== 初期化 =============== */
 const configured = firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY";
-let db=null;
-if(configured){ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
+let db=null, auth=null;
+if(configured){ firebase.initializeApp(firebaseConfig); db=firebase.database(); auth=firebase.auth(); }
 const INC = n => firebase.database.ServerValue.increment(n);
 
-let PID = localStorage.getItem("koyo_pid");
-if(!PID){ PID = "p_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); localStorage.setItem("koyo_pid",PID); }
+// ログイン後にAuthのUIDが入る。OLD_PIDは旧バージョン（端末ごとのID）からの引き継ぎ用
+let PID = null;
+const OLD_PID = localStorage.getItem("koyo_pid");
 
 let me=null, buildings={}, rankData={}, geo=null, curB=null, curSub=null, selUnits=new Set(), rankSynced=false;
 const $ = id=>document.getElementById(id);
 const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2200); }
+
+/* =============== ログイン =============== */
+const AUTH_ERR = {
+  "auth/invalid-email":"メールアドレスの形式が正しくないよ",
+  "auth/missing-password":"パスワードを入力してね",
+  "auth/user-not-found":"このメールアドレスは登録されていないよ。「新規登録」を押してね",
+  "auth/wrong-password":"パスワードが違うよ",
+  "auth/invalid-credential":"メールアドレスかパスワードが違うよ",
+  "auth/email-already-in-use":"このメールアドレスは登録済みだよ。「ログイン」を押してね",
+  "auth/weak-password":"パスワードは6文字以上にしてね",
+  "auth/too-many-requests":"失敗が続いたので少し時間をおいてから試してね",
+  "auth/network-request-failed":"通信エラー。電波のいい場所でもう一度試してね",
+  "auth/popup-closed-by-user":"ログイン画面が閉じられたよ",
+  "auth/operation-not-allowed":"このログイン方法がFirebaseコンソールで有効化されていないよ（README参照）",
+};
+const authErrMsg = e => AUTH_ERR[e.code] || "エラー: "+(e.message||e.code);
+function showLogin(){ $("login").classList.add("show"); }
+function hideLogin(){ $("login").classList.remove("show"); }
+function setLoginErr(msg){ $("loginErr").textContent=msg||""; $("loginErr").style.display=msg?"block":"none"; }
+function authBusy(b){ ["loginBtn","signupBtn","googleBtn"].forEach(id=>$(id).disabled=b); }
+
+if(configured){
+  $("loginBtn").onclick=()=>{
+    const em=$("authEmail").value.trim(), pw=$("authPass").value;
+    if(!em||!pw){ setLoginErr("メールアドレスとパスワードを入力してね"); return; }
+    setLoginErr(); authBusy(true);
+    auth.signInWithEmailAndPassword(em,pw)
+      .catch(e=>setLoginErr(authErrMsg(e))).finally(()=>authBusy(false));
+  };
+  $("signupBtn").onclick=()=>{
+    const em=$("authEmail").value.trim(), pw=$("authPass").value;
+    if(!em||!pw){ setLoginErr("メールアドレスとパスワード（6文字以上）を入力してね"); return; }
+    setLoginErr(); authBusy(true);
+    auth.createUserWithEmailAndPassword(em,pw)
+      .catch(e=>setLoginErr(authErrMsg(e))).finally(()=>authBusy(false));
+  };
+  $("googleBtn").onclick=()=>{
+    setLoginErr(); authBusy(true);
+    const prov=new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(prov).catch(e=>{
+      // ポップアップが使えない環境（アプリ内ブラウザ等）はリダイレクト方式にフォールバック
+      if(e.code==="auth/popup-blocked"||e.code==="auth/operation-not-supported-in-this-environment")
+        auth.signInWithRedirect(prov).catch(e2=>setLoginErr(authErrMsg(e2)));
+      else setLoginErr(authErrMsg(e));
+    }).finally(()=>authBusy(false));
+  };
+  $("resetLink").onclick=()=>{
+    const em=$("authEmail").value.trim();
+    if(!em){ setLoginErr("メールアドレスを入力してから押してね"); return; }
+    auth.sendPasswordResetEmail(em)
+      .then(()=>{ setLoginErr(); toast("パスワード再設定メールを送ったよ"); })
+      .catch(e=>setLoginErr(authErrMsg(e)));
+  };
+  $("logoutBtn").onclick=()=>{
+    if(confirm("ログアウトする？（データはアカウントに保存されているよ）"))
+      auth.signOut().then(()=>location.reload());
+  };
+}
+
+// 旧バージョン（端末ごとのID）のデータをアカウントへ引き継ぐ
+function migrateOldData(uid){
+  if(!OLD_PID || OLD_PID===uid) return Promise.resolve();
+  return db.ref("players/"+OLD_PID).get().then(s=>{
+    const old=s.val();
+    if(!old){ localStorage.removeItem("koyo_pid"); return; }
+    return db.ref("buildings").get().then(bs=>{
+      const up={};
+      up["players/"+uid]=old;
+      up["players/"+OLD_PID]=null;
+      up["rankings/"+uid]={name:old.name, faction:old.faction, koyo:old.koyo||0};
+      up["rankings/"+OLD_PID]=null;
+      // 防衛中ユニットの配置情報も新IDへ付け替える
+      Object.entries(bs.val()||{}).forEach(([bid,b])=>{
+        const d=(b.defenders||{})[OLD_PID];
+        if(d){ up[`buildings/${bid}/defenders/${uid}`]={...d, pid:uid}; up[`buildings/${bid}/defenders/${OLD_PID}`]=null; }
+      });
+      return db.ref().update(up).then(()=>{
+        localStorage.removeItem("koyo_pid");
+        toast("この端末のデータをアカウントに引き継いだよ");
+      });
+    });
+  });
+}
 
 /* =============== 建物シード =============== */
 function seedBuildings(){
@@ -960,9 +1074,19 @@ document.querySelectorAll("#bar button").forEach(b=>{
 if(!configured){
   showReg();
 }else{
-  db.ref("players/"+PID).get().then(s=>{
-    if(!s.exists()) showReg();
-    subscribe();
+  // リダイレクト方式ログインの結果を回収（file://等の非対応環境エラーは無視）
+  auth.getRedirectResult().catch(e=>{
+    if(e.code!=="auth/operation-not-supported-in-this-environment") setLoginErr(authErrMsg(e));
+  });
+  auth.onAuthStateChanged(user=>{
+    if(!user){ me=null; showLogin(); return; }
+    if(PID===user.uid) return;
+    PID=user.uid;
+    hideLogin();
+    db.ref("players/"+PID).get().then(s=>{
+      if(s.exists()){ localStorage.removeItem("koyo_pid"); return; }
+      return migrateOldData(PID);
+    }).then(subscribe); // データが無ければsubscribe内で登録画面が出る
   });
 }
 startGeo();
