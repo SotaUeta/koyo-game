@@ -257,6 +257,8 @@ const BUILDING_DEFS = [
     <h2>人材いちらん</h2>
     <div class="matline" id="itemLine"></div>
     <div class="matline" id="matLine"></div>
+    <div class="matline" id="sortLine"></div>
+    <div class="matline" id="elmLine"></div>
     <div id="unitList"></div>
   </div>
 
@@ -298,6 +300,20 @@ const FACTIONS = {
 const MATERIALS = {neji:"🔩ネジ", kairo:"🔌回路", code:"💻コード", mizu:"💧水", mokei:"🏠模型"};
 const FAC_MAT = {M:"neji", E:"kairo", I:"code", C:"mizu", A:"mokei"};
 const ITEMS = {enadori:{name:"⚡エナドリ", heal:40}, pan:{name:"🍞菓子パン", heal:80}, aset:{name:"🍱Aセット", heal:9999}};
+
+// 属性: 火→氷→風→土→雷→水→火 の順で有利（beats = 自分が強い相手）
+const ELEMENTS = {
+  fire:   {name:"火", ico:"🔥", beats:"ice"},
+  water:  {name:"水", ico:"💧", beats:"fire"},
+  thunder:{name:"雷", ico:"⚡", beats:"water"},
+  earth:  {name:"土", ico:"🪨", beats:"thunder"},
+  wind:   {name:"風", ico:"🌀", beats:"earth"},
+  ice:    {name:"氷", ico:"❄️", beats:"wind"},
+};
+const ELM_KEYS = Object.keys(ELEMENTS);
+const ELM_ADV = 1.5; // 有利属性のダメージ倍率
+const elmIco = k => ELEMENTS[k] ? ELEMENTS[k].ico+ELEMENTS[k].name : "";
+const elmMult = (a,d) => (a&&d&&ELEMENTS[a]?.beats===d) ? ELM_ADV : 1;
 
 // HPはローマ字表記が短いほど高め・攻撃力は画数が多いほど高め、の傾向で調整済み
 const UNIT_POOL = {
@@ -517,7 +533,7 @@ function renderBuilding(bid){
 
   if(defs.length){
     html+=`<div class="note" style="margin-top:6px;">🛡 防衛中:</div>`;
-    defs.forEach(d=>{ html+=`<div class="note">・${esc(d.name)}（${esc(d.pname)}）HP${d.hp}/${d.maxHp}</div>`; });
+    defs.forEach(d=>{ html+=`<div class="note">・${d.elm?elmIco(d.elm)+" ":""}${esc(d.name)}（${esc(d.pname)}）HP${d.hp}/${d.maxHp}</div>`; });
   }
 
   if(mine){
@@ -547,7 +563,7 @@ function viewDefend(){
     const list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
     if(!list.length) html+=`<p class="note">配置できる人材がいない（HP0か防衛中）。ガシャで引くか回復しよう。</p>`;
     list.forEach(([id,u])=>{
-      html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b></div>
+      html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}<b>${esc(u.name)}</b></div>
         <div class="stat">HP ${u.hp}/${u.maxHp}　攻${u.atk}　守${u.def}</div>
         <button class="mini" onclick="placeDef('${id}')">引きこもりとして置く</button></div>`;
     });
@@ -559,7 +575,7 @@ function placeDef(uid){
   if(!u||u.hp<=0||u.defendingAt) return;
   if((b.defenders||{})[PID]){ toast("この建物にはもう置いているよ"); return; }
   const up={};
-  up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:u.atk, def:u.def, pname:me.name};
+  up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:u.atk, def:u.def, elm:u.elm||null, pname:me.name};
   up[`players/${PID}/units/${uid}/defendingAt`]=curB;
   db.ref().update(up).then(()=>toast("引きこもり配置！"));
 }
@@ -642,7 +658,7 @@ function viewAttack(){
   let html=`<h3 style="font-size:13px;">⚔ 出撃メンバーを選ぶ（最大6体）</h3>`;
   if(!list.length) html+=`<p class="note">出撃できる人材がいない。ガシャで引くか回復しよう。</p>`;
   list.forEach(([id,u])=>{
-    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b>
+    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}<b>${esc(u.name)}</b>
       <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻${u.atk}　守${u.def}</div></div>`;
   });
@@ -686,9 +702,10 @@ function runBattle(bid,b){
       if(u.hp<=0) continue;
       const tgt=D.find(d=>d.hp>0);
       if(tgt){
-        const dmg=Math.max(1,u.atk-tgt.def);
+        const mult=elmMult(u.elm,tgt.elm);
+        const dmg=Math.max(1,Math.round((u.atk-tgt.def)*mult));
         tgt.hp-=dmg;
-        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ`});
+        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}`});
         if(tgt.hp<=0){ tgt.hp=0; kills++; mats+=2; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
       }else{
         const dmg=Math.max(1,u.atk-bDef);
@@ -711,9 +728,10 @@ function runBattle(bid,b){
       if(d.hp<=0) continue;
       const t=aliveA[Math.floor(Math.random()*aliveA.length)];
       if(!t||t.hp<=0) continue;
-      const dmg=Math.max(1,d.atk-t.def);
+      const mult=elmMult(d.elm,t.elm);
+      const dmg=Math.max(1,Math.round((d.atk-t.def)*mult));
       t.hp-=dmg;
-      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ`});
+      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}`});
       if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
     }
     if(!D.some(d=>d.hp>0)){
@@ -806,7 +824,8 @@ function rollUnit(forceRank){
   const v=()=>0.9+Math.random()*0.2;
   const hp=Math.round(base.hp*v());
   return { id:"u_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-    name:base.name, rank, hp, maxHp:hp, atk:Math.round(base.atk*v()), def:Math.round(base.def*v()), defendingAt:null };
+    name:base.name, rank, hp, maxHp:hp, atk:Math.round(base.atk*v()), def:Math.round(base.def*v()),
+    elm:ELM_KEYS[Math.floor(Math.random()*ELM_KEYS.length)], defendingAt:null };
 }
 function renderGacha(){
   if(!me) return;
@@ -836,27 +855,44 @@ $("gachaBtn").onclick=()=>{
   db.ref().update(up).then(()=>{
     setTimeout(()=>{
       $("gachaMachine").classList.remove("spin");
-      $("gachaResult").innerHTML=`<div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b></div>
+      $("gachaResult").innerHTML=`<div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><span class="badge">${elmIco(u.elm)}</span><b>${esc(u.name)}</b></div>
         <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>`;
     },900);
   });
 };
 
 /* =============== 人材タブ =============== */
+let unitSort="rank", unitFilter="all";
+const UNIT_SORTS={rank:"ランク順", atk:"攻撃力順", def:"守り順", hp:"HP順"};
+function setUnitSort(k){ unitSort=k; renderUnits(); }
+function setUnitFilter(k){ unitFilter=k; renderUnits(); }
+function sortUnits(units){
+  const order={A:0,B:1,C:2,F:3};
+  const arr=[...units];
+  if(unitSort==="rank") arr.sort((a,b)=>(order[a[1].rank]-order[b[1].rank]) || (b[1].atk-a[1].atk));
+  else if(unitSort==="hp") arr.sort((a,b)=>(b[1].maxHp-a[1].maxHp));
+  else arr.sort((a,b)=>(b[1][unitSort]||0)-(a[1][unitSort]||0));
+  return arr;
+}
 function renderUnits(){
   if(!me) return;
   $("itemLine").innerHTML="回復: "+Object.entries(ITEMS).map(([k,it])=>`${it.name}×${me.items?.[k]||0}`).join("　");
   $("matLine").innerHTML="素材: "+Object.entries(MATERIALS).map(([k,n])=>`${n}×${me.materials?.[k]||0}`).join("　");
+  $("sortLine").innerHTML="並び: "+Object.entries(UNIT_SORTS).map(([k,n])=>
+    `<button class="mini ${unitSort===k?"sel":""}" onclick="setUnitSort('${k}')">${n}</button>`).join("");
+  $("elmLine").innerHTML="属性: "+`<button class="mini ${unitFilter==="all"?"sel":""}" onclick="setUnitFilter('all')">全部</button>`+
+    ELM_KEYS.map(k=>`<button class="mini ${unitFilter===k?"sel":""}" onclick="setUnitFilter('${k}')">${ELEMENTS[k].ico}${ELEMENTS[k].name}</button>`).join("");
   const wrap=$("unitList"); wrap.innerHTML="";
-  const units=Object.entries(me.units||{}).sort((a,b)=>"AFBC".indexOf(a[1].rank)-"AFBC".indexOf(b[1].rank));
-  const order={A:0,B:1,C:2,F:3};
-  units.sort((a,b)=>order[a[1].rank]-order[b[1].rank]);
-  if(!units.length) wrap.innerHTML='<p class="note">まだ人材がいない。ガシャを回そう！</p>';
+  let units=Object.entries(me.units||{});
+  const hasAny=units.length>0;
+  if(unitFilter!=="all") units=units.filter(([id,u])=>u.elm===unitFilter);
+  units=sortUnits(units);
+  if(!units.length) wrap.innerHTML=hasAny?'<p class="note">この属性の人材はいない。</p>':'<p class="note">まだ人材がいない。ガシャを回そう！</p>';
   units.forEach(([id,u])=>{
     const hpr=u.hp/u.maxHp;
     const d=document.createElement("div"); d.className="card";
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
-    d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span><b>${esc(u.name)}</b>
+    d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}<b>${esc(u.name)}</b>
         ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}　守 ${u.def}</div>
