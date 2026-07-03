@@ -696,7 +696,9 @@ function runBattle(bid,b){
   const koyoGain={}; // 防衛側プレイヤーへのこうよう
 
   log.push({c:"sys",t:`⚔ ${b.name} への攻撃開始！（防衛${D.length}体）`});
-  for(let r=1;r<=30;r++){
+  const MAX_ROUNDS=10;
+  for(let r=1;r<=MAX_ROUNDS;r++){
+    log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───`});
     // 攻撃側ターン（先攻）
     for(const u of A){
       if(u.hp<=0) continue;
