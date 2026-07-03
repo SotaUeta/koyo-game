@@ -652,11 +652,21 @@ function claimRation(){
 }
 
 /* ---- 攻撃 ---- */
+let atkSort="rank", atkFilter="all";
+function setAtkSort(k){ atkSort=k; viewAttack(); }
+function setAtkFilter(k){ atkFilter=k; viewAttack(); }
 function viewAttack(){
   curSub=viewAttack;
-  const list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
+  let list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
+  const hasAny=list.length>0;
+  if(atkFilter!=="all") list=list.filter(([id,u])=>u.elm===atkFilter);
+  list=sortUnits(list, atkSort);
   let html=`<h3 style="font-size:13px;">⚔ 出撃メンバーを選ぶ（最大6体）</h3>`;
-  if(!list.length) html+=`<p class="note">出撃できる人材がいない。ガシャで引くか回復しよう。</p>`;
+  html+=`<div class="matline">並び: `+Object.entries(UNIT_SORTS).map(([k,n])=>
+    `<button class="mini ${atkSort===k?"sel":""}" onclick="setAtkSort('${k}')">${n}</button>`).join("")+`</div>`;
+  html+=`<div class="matline">属性: <button class="mini ${atkFilter==="all"?"sel":""}" onclick="setAtkFilter('all')">全部</button>`+
+    ELM_KEYS.map(k=>`<button class="mini ${atkFilter===k?"sel":""}" onclick="setAtkFilter('${k}')">${ELEMENTS[k].ico}${ELEMENTS[k].name}</button>`).join("")+`</div>`;
+  if(!list.length) html+=`<p class="note">${hasAny?"この属性の出撃できる人材はいない。":"出撃できる人材がいない。ガシャで引くか回復しよう。"}</p>`;
   list.forEach(([id,u])=>{
     html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}<b>${esc(u.name)}</b>
       <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
@@ -868,12 +878,13 @@ let unitSort="rank", unitFilter="all";
 const UNIT_SORTS={rank:"ランク順", atk:"攻撃力順", def:"守り順", hp:"HP順"};
 function setUnitSort(k){ unitSort=k; renderUnits(); }
 function setUnitFilter(k){ unitFilter=k; renderUnits(); }
-function sortUnits(units){
+function sortUnits(units, sortKey){
+  const sk=sortKey||unitSort;
   const order={A:0,B:1,C:2,F:3};
   const arr=[...units];
-  if(unitSort==="rank") arr.sort((a,b)=>(order[a[1].rank]-order[b[1].rank]) || (b[1].atk-a[1].atk));
-  else if(unitSort==="hp") arr.sort((a,b)=>(b[1].maxHp-a[1].maxHp));
-  else arr.sort((a,b)=>(b[1][unitSort]||0)-(a[1][unitSort]||0));
+  if(sk==="rank") arr.sort((a,b)=>(order[a[1].rank]-order[b[1].rank]) || (b[1].atk-a[1].atk));
+  else if(sk==="hp") arr.sort((a,b)=>(b[1].maxHp-a[1].maxHp));
+  else arr.sort((a,b)=>(b[1][sk]||0)-(a[1][sk]||0));
   return arr;
 }
 function renderUnits(){
