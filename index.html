@@ -365,6 +365,14 @@ const UNIT_POOL = {
       {name:"早坂学生主事",   hp:320, atk:50, def:20},
       {name:"平野学先生",     hp:260, atk:65, def:24} ],
 };
+// スターター配布用：各学科の学科長（Aランク）
+const DEPT_HEADS = {
+  M:{name:"鬼頭俊介学科長", hp:290, atk:60, def:22},
+  E:{name:"光本真一学科長", hp:290, atk:60, def:22},
+  I:{name:"江﨑信行学科長", hp:290, atk:60, def:22},
+  C:{name:"小林睦学科長",   hp:290, atk:60, def:22},
+  A:{name:"鈴木健次学科長", hp:290, atk:60, def:22},
+};
 const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
 const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
 
@@ -496,14 +504,14 @@ function showReg(){
   function checkReg(){ $("regGo").disabled = !(regFac && $("regName").value.trim()); }
   $("regGo").onclick=()=>{
     if(!configured){ alert("先にfirebaseConfigを設定してください（READMEを見てね）"); return; }
-    const starter = rollUnit("F");
-    const p={ name:$("regName").value.trim(), faction:regFac, coins:3, coinAnchor:Date.now(),
+    const starter = makeUnit(DEPT_HEADS[regFac], "A");
+    const p={ name:$("regName").value.trim(), faction:regFac, coins:5, coinAnchor:Date.now(),
       koyo:0, materials:{neji:0,kairo:0,code:0,mizu:0,mokei:0},
-      items:{enadori:1,pan:0,aset:0}, units:{[starter.id]:starter}, createdAt:Date.now() };
+      items:{enadori:6,pan:0,aset:0}, units:{[starter.id]:starter}, createdAt:Date.now() };
     const up={};
     up["players/"+PID]=p;
     up["rankings/"+PID]={name:p.name, faction:p.faction, koyo:0};
-    db.ref().update(up).then(()=>{ $("reg").classList.remove("show"); toast("参戦！ スターター人材とエナドリを配布したよ"); });
+    db.ref().update(up).then(()=>{ $("reg").classList.remove("show"); toast("参戦！ 学科長とエナドリを配布したよ"); });
   };
 }
 
@@ -949,6 +957,9 @@ function rollUnit(forceRank){
   }
   const pool=UNIT_POOL[rank];
   const base=pool[Math.floor(Math.random()*pool.length)];
+  return makeUnit(base, rank);
+}
+function makeUnit(base, rank){
   const v=()=>0.9+Math.random()*0.2;
   const hp=Math.round(base.hp*v());
   return { id:"u_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
