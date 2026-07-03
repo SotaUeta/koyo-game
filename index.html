@@ -104,6 +104,7 @@ button{font-family:inherit;}
   background:var(--panel2); color:var(--text); font-size:13px; cursor:pointer;
 }
 .bigbtn:disabled{opacity:.4;}
+.atkfloat{position:sticky; bottom:0; z-index:5; margin:8px -14px 0; padding:8px 14px calc(8px + env(safe-area-inset-bottom)); background:var(--panel);}
 .bigbtn .ico{display:block; font-size:22px; margin-bottom:2px;}
 .card{
   border:2px solid var(--line); border-radius:10px; background:var(--panel2);
@@ -543,7 +544,7 @@ function renderBuilding(bid){
       <button class="bigbtn" onclick="viewRation()"><span class="ico">🎁</span>配給</button>
     </div><div id="bSub"></div>`;
   }else{
-    html+=`<div class="row"><button class="bigbtn" onclick="viewAttack()"><span class="ico">⚔</span>攻撃する</button></div><div id="bSub"></div>`;
+    html+=`<div class="row" id="atkOpenRow"${curSub===viewAttack?' style="display:none"':''}><button class="bigbtn" onclick="viewAttack()"><span class="ico">⚔</span>攻撃する</button></div><div id="bSub"></div>`;
   }
   $("bSheet").innerHTML=html;
   if(curSub && $("bSub")) curSub();
@@ -657,6 +658,7 @@ function setAtkSort(k){ atkSort=k; viewAttack(); }
 function setAtkFilter(k){ atkFilter=k; viewAttack(); }
 function viewAttack(){
   curSub=viewAttack;
+  const openRow=$("atkOpenRow"); if(openRow) openRow.style.display="none";
   let list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
   const hasAny=list.length>0;
   if(atkFilter!=="all") list=list.filter(([id,u])=>u.elm===atkFilter);
@@ -672,7 +674,7 @@ function viewAttack(){
       <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻${u.atk}　守${u.def}</div></div>`;
   });
-  html+=`<button class="bigbtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button>`;
+  html+=`<div class="atkfloat"><button class="bigbtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
   $("bSub").innerHTML=html;
 }
 function togSel(id){
