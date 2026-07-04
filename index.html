@@ -286,6 +286,7 @@ const BUILDING_DEFS = [
   <div class="tab" id="tab-units">
     <h2>人材いちらん</h2>
     <div class="matline" id="itemLine"></div>
+    <div class="matline" id="equipLine"></div>
     <div class="matline" id="matLine"></div>
     <div class="matline" id="sortLine"></div>
     <div class="matline" id="elmLine"></div>
@@ -331,6 +332,18 @@ const FACTIONS = {
 const MATERIALS = {neji:"🔩ネジ", kairo:"🔌回路", code:"💻コード", mizu:"💧水", mokei:"🏠模型"};
 const FAC_MAT = {M:"neji", E:"kairo", I:"code", C:"mizu", A:"mokei"};
 const ITEMS = {enadori:{name:"⚡エナドリ", heal:40}, pan:{name:"🍞菓子パン", heal:80}, aset:{name:"🍱Aセット", heal:9999}};
+
+// 装備（人材1人につき1つ・バトルでまれにドロップ）
+const EQUIPS = {
+  toygun:{name:"🔫おもちゃの銃", desc:"攻撃力+50"},
+  osake: {name:"🍶お酒",         desc:"攻撃力1.5倍"},
+  jisshu:{name:"🥼実習服",       desc:"守り1.5倍"},
+  suit:  {name:"🤵スーツ",       desc:"守り+50"},
+  pc:    {name:"💻パソコン",     desc:"素材ドロップ量1.2倍"},
+};
+const EQUIP_DROP_RATE = 0.1; // 10回に1回くらい
+function eqAtk(u){ let a=u.atk; if(u.equip==="toygun") a+=50; else if(u.equip==="osake") a=Math.round(a*1.5); return a; }
+function eqDef(u){ let d=u.def; if(u.equip==="suit") d+=50; else if(u.equip==="jisshu") d=Math.round(d*1.5); return d; }
 
 // 属性: 火→氷→風→土→雷→水→火 の順で有利（beats = 自分が強い相手）
 const ELEMENTS = {
@@ -686,8 +699,8 @@ function viewDefend(){
     const list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
     if(!list.length) html+=`<p class="note">配置できる人材がいない（HP0か防衛中）。ガシャで引くか回復しよう。</p>`;
     list.forEach(([id,u])=>{
-      html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}<b>${esc(u.name)}</b></div>
-        <div class="stat">HP ${u.hp}/${u.maxHp}　攻${u.atk}　守${u.def}</div>
+      html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b></div>
+        <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</div>
         <button class="mini" onclick="placeDef('${id}')">引きこもりとして置く</button></div>`;
     });
   }
@@ -698,7 +711,7 @@ function placeDef(uid){
   if(!u||u.hp<=0||u.defendingAt) return;
   if((b.defenders||{})[PID]){ toast("この建物にはもう置いているよ"); return; }
   const up={};
-  up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:u.atk, def:u.def, elm:u.elm||null, pname:me.name};
+  up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:eqAtk(u), def:eqDef(u), elm:u.elm||null, pname:me.name};
   up[`players/${PID}/units/${uid}/defendingAt`]=curB;
   db.ref().update(up).then(()=>toast("引きこもり配置！"));
 }
@@ -802,9 +815,9 @@ function viewAttack(){
     ELM_KEYS.map(k=>`<button class="mini ${atkFilter===k?"sel":""}" onclick="setAtkFilter('${k}')">${ELEMENTS[k].ico}${ELEMENTS[k].name}</button>`).join("")+`</div>`;
   if(!list.length) html+=`<p class="note">${hasAny?"この属性の出撃できる人材はいない。":"出撃できる人材がいない。ガシャで引くか回復しよう。"}</p>`;
   list.forEach(([id,u])=>{
-    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}<b>${esc(u.name)}</b>
+    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
       <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
-      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${u.atk}　守${u.def}</div></div>`;
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</div></div>`;
   });
   html+=`<div class="atkfloat"><button class="bigbtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
   $("bSub").innerHTML=html;
@@ -849,12 +862,12 @@ function runBattle(bid,b){
       const tgt=D.find(d=>d.hp>0);
       if(tgt){
         const mult=elmMult(u.elm,tgt.elm);
-        const dmg=Math.max(1,Math.round((u.atk-tgt.def)*mult));
+        const dmg=Math.max(1,Math.round((eqAtk(u)-tgt.def)*mult));
         tgt.hp-=dmg;
         log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}`});
         if(tgt.hp<=0){ tgt.hp=0; kills++; mats+=2; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
       }else{
-        const dmg=Math.max(1,u.atk-bDef);
+        const dmg=Math.max(1,eqAtk(u)-bDef);
         buildingHits++; mats+=1;
         if(b.type==="facility"){
           bhp-=dmg;
@@ -875,7 +888,7 @@ function runBattle(bid,b){
       const t=aliveA[Math.floor(Math.random()*aliveA.length)];
       if(!t||t.hp<=0) continue;
       const mult=elmMult(d.elm,t.elm);
-      const dmg=Math.max(1,Math.round((d.atk-t.def)*mult));
+      const dmg=Math.max(1,Math.round((d.atk-eqDef(t))*mult));
       t.hp-=dmg;
       log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}`});
       if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
@@ -885,7 +898,7 @@ function runBattle(bid,b){
       const t2=A.filter(u=>u.hp>0);
       if(t2.length){
         const t=t2[Math.floor(Math.random()*t2.length)];
-        const dmg=Math.max(1,bAtk-t.def);
+        const dmg=Math.max(1,bAtk-eqDef(t));
         t.hp=Math.max(0,t.hp-dmg);
         log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${dmg}ダメージ`});
         if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
@@ -894,9 +907,10 @@ function runBattle(bid,b){
     if(!A.some(u=>u.hp>0)) { log.push({c:"sys",t:"全滅…撤退！"}); break; }
   }
 
-  // 素材ドロップ（倒した数＆建物ヒット×守備側倍率）
+  // 素材ドロップ（倒した数＆建物ヒット×守備側倍率×💻パソコン装備）
   const drop={};
-  const total=Math.max(1,Math.floor(mats*defFacMult));
+  const pcN=A.filter(u=>u.equip==="pc").length;
+  const total=Math.max(1,Math.floor(mats*defFacMult*Math.pow(1.2,pcN)));
   const prefer=b.owner?FAC_MAT[b.owner]:null;
   const keys=Object.keys(MATERIALS);
   for(let i=0;i<total;i++){
@@ -905,7 +919,14 @@ function runBattle(bid,b){
     else k=keys[Math.floor(Math.random()*keys.length)];
     drop[k]=(drop[k]||0)+1;
   }
-  log.push({c:"sys",t:"🎒 素材: "+Object.entries(drop).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" ")});
+  log.push({c:"sys",t:"🎒 素材: "+Object.entries(drop).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" ")+(pcN?`（💻パソコン×${pcN}でアップ！）`:"")});
+  // 装備のレアドロップ
+  let eqDrop=null;
+  if(Math.random()<EQUIP_DROP_RATE){
+    const ks=Object.keys(EQUIPS);
+    eqDrop=ks[Math.floor(Math.random()*ks.length)];
+    log.push({c:"sys",t:`🎁 レアドロップ！ ${EQUIPS[eqDrop].name}（${EQUIPS[eqDrop].desc}）を手に入れた！`});
+  }
   if(captured) log.push({c:"sys",t:`🚩 ${b.name} を ${FACTIONS[me.faction].short}科が制圧！（HP全回復）`});
 
   /* --- 書き込み --- */
@@ -934,6 +955,7 @@ function runBattle(bid,b){
   }
   A.forEach(u=>{ up[`players/${PID}/units/${u.id}/hp`]=Math.max(0,u.hp); });
   Object.entries(drop).forEach(([k,v])=>{ up[`players/${PID}/materials/${k}`]=INC(v); });
+  if(eqDrop) up[`players/${PID}/equips/${eqDrop}`]=INC(1);
   Object.entries(koyoGain).forEach(([pid,v])=>{
     up[`players/${pid}/koyo`]=INC(v);
     up[`rankings/${pid}/koyo`]=INC(v);
@@ -1027,6 +1049,7 @@ function sortUnits(units, sortKey){
 function renderUnits(){
   if(!me) return;
   $("itemLine").innerHTML="回復: "+Object.entries(ITEMS).map(([k,it])=>`${it.name}×${me.items?.[k]||0}`).join("　");
+  $("equipLine").innerHTML="装備: "+Object.entries(EQUIPS).map(([k,e])=>`${e.name}×${me.equips?.[k]||0}`).join("　");
   $("matLine").innerHTML="素材: "+Object.entries(MATERIALS).map(([k,n])=>`${n}×${me.materials?.[k]||0}`).join("　");
   $("sortLine").innerHTML="並び: "+Object.entries(UNIT_SORTS).map(([k,n])=>
     `<button class="mini ${unitSort===k?"sel":""}" onclick="setUnitSort('${k}')">${n}</button>`).join("");
@@ -1042,15 +1065,31 @@ function renderUnits(){
     const hpr=u.hp/u.maxHp;
     const d=document.createElement("div"); d.className="card";
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
-    d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}<b>${esc(u.name)}</b>
+    const eqBtns=Object.entries(EQUIPS).filter(([k])=>freeEquips(k)>0 && u.equip!==k)
+      .map(([k,e])=>`<button class="mini" onclick="setEquip('${id}','${k}')">${e.name}を装備</button>`).join("");
+    const eqRow=(u.equip||eqBtns)?`<div class="row" style="margin:6px 0 0">${
+      u.equip?`<button class="mini" onclick="setEquip('${id}',null)">✖${EQUIPS[u.equip].name}をはずす</button>`:""}${eqBtns}</div>`:"";
+    d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
         ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
-      <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}　守 ${u.def}</div>
-      ${u.defendingAt?'<div class="note">回復するには呼び戻してね</div>':
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}</div>
+      ${u.defendingAt?'<div class="note">回復・装備変更するには呼び戻してね</div>':
         `<div class="row" style="margin:6px 0 0">${Object.entries(ITEMS).map(([k,it])=>
-          `<button class="mini" ${(me.items?.[k]||0)<1||u.hp>=u.maxHp?"disabled":""} onclick="useItem('${id}','${k}')">${it.name}</button>`).join("")}</div>`}`;
+          `<button class="mini" ${(me.items?.[k]||0)<1||u.hp>=u.maxHp?"disabled":""} onclick="useItem('${id}','${k}')">${it.name}</button>`).join("")}</div>`+eqRow}`;
     wrap.appendChild(d);
   });
+}
+// 装備の空き数 = 所持数 − 装備中の数
+function freeEquips(k){
+  const used=Object.values(me.units||{}).filter(u=>u.equip===k).length;
+  return (me.equips?.[k]||0)-used;
+}
+function setEquip(uid,k){
+  const u=me.units[uid]; if(!u) return;
+  if(u.defendingAt){ toast("防衛中は装備を変えられないよ"); return; }
+  if(k && freeEquips(k)<1) return;
+  db.ref(`players/${PID}/units/${uid}/equip`).set(k||null)
+    .then(()=>toast(k?`${u.name} に ${EQUIPS[k].name} を装備！`:"装備をはずした"));
 }
 function useItem(uid,ik){
   const u=me.units[uid];
