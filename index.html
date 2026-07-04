@@ -68,6 +68,18 @@ button{font-family:inherit;}
   pointer-events:none;
 }
 .bicon.far{opacity:.45; filter:grayscale(.7);}
+.bicon .rpop{
+  position:absolute; bottom:calc(100% + 8px); left:50%;
+  background:var(--gold); color:#221a00; font-size:10px; font-weight:bold;
+  padding:3px 7px; border-radius:8px; white-space:nowrap; cursor:pointer;
+  box-shadow:0 2px 6px #0008; z-index:2;
+  animation:bob .7s ease-in-out infinite alternate;
+}
+.bicon .rpop::after{
+  content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:var(--gold);
+}
+@keyframes bob{ from{transform:translate(-50%,0);} to{transform:translate(-50%,-4px);} }
 .bicon.battling::after{
   content:"⚡"; position:absolute; top:-14px; right:-10px; font-size:18px;
   animation:spark .25s infinite alternate;
@@ -559,7 +571,7 @@ function subscribe(){
     if(!me){ showReg(); return; }
     $("reg").classList.remove("show");
     ensureRankNode();
-    renderHdr(); renderUnits(); renderGacha();
+    renderHdr(); renderUnits(); renderGacha(); renderMap();
     if(curB) renderBuilding(curB);
   });
   db.ref("buildings").on("value",s=>{
@@ -666,6 +678,17 @@ function renderMap(){
       if(!inRange(def)){ toast("近くまで移動するとタップできるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
       openBuilding(def.id);
     };
+    // 配給が受け取り可能ならポップアップを出す（タップでその場で受け取り）
+    if(rationReady(def.id)){
+      const pop=document.createElement("div");
+      pop.className="rpop"; pop.textContent="🎁配給";
+      pop.onclick=e=>{
+        e.stopPropagation();
+        if(!inRange(def)){ toast("近くまで移動すると受け取れるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
+        claimRationAt(def.id);
+      };
+      el.appendChild(pop);
+    }
     wrap.appendChild(el);
   });
 }
@@ -795,6 +818,13 @@ function rationAmt(bid,it){
   const hLv=buildings[bid]?.hatakeLv||1;
   return it==="aset" ? Math.max(1,Math.floor(hLv/2)) : hLv;
 }
+// 自陣営の建物で、前回の受け取りから時間が経っていれば受け取り可能
+function rationReady(bid){
+  if(!me) return false;
+  const b=buildings[bid];
+  if(!b||b.owner!==me.faction) return false;
+  return Date.now()-((me.rations||{})[bid]||0)>=RATION_MS;
+}
 function viewRation(){
   curSub=viewRation;
   const last=(me.rations||{})[curB]||0;
@@ -810,15 +840,19 @@ function viewRation(){
       <button class="mini" onclick="claimRation()">受け取る</button></div>`;
   }
 }
-function claimRation(){
-  const last=(me.rations||{})[curB]||0;
-  if(Date.now()-last<RATION_MS) return;
-  const it=rationItem(curB);
-  const amt = rationAmt(curB,it);
+function claimRation(){ claimRationAt(curB); }
+// マップのポップアップからも呼べるよう、建物IDを指定して受け取る
+function claimRationAt(bid){
+  if(!rationReady(bid)) return;
+  const it=rationItem(bid);
+  const amt = rationAmt(bid,it);
   const up={};
   up[`players/${PID}/items/${it}`]=INC(amt);
-  up[`players/${PID}/rations/${curB}`]=Date.now();
-  db.ref().update(up).then(()=>{ toast(`${ITEMS[it].name}×${amt} を受け取った！`); setTimeout(viewRation,300); });
+  up[`players/${PID}/rations/${bid}`]=Date.now();
+  db.ref().update(up).then(()=>{
+    toast(`${ITEMS[it].name}×${amt} を受け取った！`);
+    if(curB===bid && curSub===viewRation) setTimeout(viewRation,300);
+  });
 }
 
 /* ---- 攻撃 ---- */
