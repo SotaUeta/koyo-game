@@ -116,6 +116,7 @@ Firebaseコンソール → Realtime Database → データのルート（`playe
 - `COIN_MS` / `RATION_MS` … コイン・配給の間隔
 - `upCost()` … 強化コスト
 - `EQUIPS` / `EQUIP_DROP_RATE` … 装備の種類・ドロップ率
+- 説明文（図鑑テキスト）… 人材は `UNIT_POOL`/`DEPT_HEADS` の `desc`、回復アイテムは `ITEMS` の `desc`、素材は `MAT_DESC`、装備は `EQUIPS` の `lore`。人材タブの一覧行（回復/装備/素材）は名前タップで説明が出る
 - `BUILDING_DEFS` … 建物の追加、マップ上の位置(x,y は画像の%)
 
 ## 既知の割り切り（βテスト仕様）

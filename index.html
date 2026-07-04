@@ -330,16 +330,27 @@ const FACTIONS = {
   A:{name:"建築学科",    short:"A", color:"#45c8e8", tc:"#123"},
 };
 const MATERIALS = {neji:"🔩ネジ", kairo:"🔌回路", code:"💻コード", mizu:"💧水", mokei:"🏠模型"};
+const MAT_DESC = {
+  neji: "頭から抜けている人がいる。M科を攻撃すると落ちやすい。",
+  kairo:"はんだの焦げた匂いがする。E科を攻撃すると落ちやすい。",
+  code: "動かない原因はだいたいセミコロン。I科を攻撃すると落ちやすい。",
+  mizu: "水理実験の余りもの。C科を攻撃すると落ちやすい。",
+  mokei:"徹夜の結晶。壊すと単位も壊れる。A科を攻撃すると落ちやすい。",
+};
 const FAC_MAT = {M:"neji", E:"kairo", I:"code", C:"mizu", A:"mokei"};
-const ITEMS = {enadori:{name:"⚡エナドリ", heal:40}, pan:{name:"🍞菓子パン", heal:80}, aset:{name:"🍱Aセット", heal:9999}};
+const ITEMS = {
+  enadori:{name:"⚡エナドリ", heal:40,   desc:"テスト期間になると、自販機から無くなる。回復量は40。"},
+  pan:    {name:"🍞菓子パン", heal:80,   desc:"購買の争奪戦を勝ち抜いた者だけが食べられる。回復量は80。"},
+  aset:   {name:"🍱Aセット", heal:9999, desc:"食堂の看板メニュー。これを食べれば元気満タン。HP全回復。"},
+};
 
 // 装備（人材1人につき1つ・バトルでまれにドロップ）
 const EQUIPS = {
-  toygun:{name:"🔫おもちゃの銃", desc:"攻撃力+50"},
-  osake: {name:"🍶お酒",         desc:"攻撃力1.5倍"},
-  jisshu:{name:"🥼実習服",       desc:"守り1.5倍"},
-  suit:  {name:"🤵スーツ",       desc:"守り+50"},
-  pc:    {name:"💻パソコン",     desc:"素材ドロップ量1.2倍"},
+  toygun:{name:"🔫おもちゃの銃", desc:"攻撃力+50",           lore:"文化祭の射的の景品。意外と飛ぶ。"},
+  osake: {name:"🍶お酒",         desc:"攻撃力1.5倍",         lore:"持ち込み厳禁。見つかったら没収どころでは済まない。"},
+  jisshu:{name:"🥼実習服",       desc:"守り1.5倍",           lore:"油のしみ込んだ歴戦の相棒。洗っても落ちない。"},
+  suit:  {name:"🤵スーツ",       desc:"守り+50",             lore:"就活の戦闘服。着ると背筋が伸びる。"},
+  pc:    {name:"💻パソコン",     desc:"素材ドロップ量1.2倍", lore:"高専生の相棒。膝の上でコンパイルが走る。"},
 };
 const EQUIP_DROP_RATE = 0.1; // 10回に1回くらい
 function eqAtk(u){ let a=u.atk; if(u.equip==="toygun") a+=50; else if(u.equip==="osake") a=Math.round(a*1.5); return a; }
@@ -361,31 +372,35 @@ const elmMult = (a,d) => (a&&d&&ELEMENTS[a]?.beats===d) ? ELM_ADV : 1;
 
 // HPはローマ字表記が短いほど高め・攻撃力は画数が多いほど高め、の傾向で調整済み
 const UNIT_POOL = {
-  F:[ {name:"課題未提出学生", hp:60, atk:12, def:2},
-      {name:"居眠り学生",     hp:75, atk:8,  def:3},
-      {name:"停寮学生",       hp:80, atk:9,  def:2},
-      {name:"訓告学生",       hp:65, atk:11, def:3} ],
-  C:[ {name:"無趣味な学生",   hp:110, atk:16, def:6},
-      {name:"専門教科も好きではない学生", hp:95, atk:22, def:5},
-      {name:"ぼっちな学生",   hp:130, atk:15, def:6},
-      {name:"帰宅部学生",     hp:120, atk:17, def:7},
-      {name:"根暗な学生",     hp:105, atk:20, def:8} ],
-  B:[ {name:"コンテスト優勝学生", hp:160, atk:38, def:11},
-      {name:"成績優秀学生",   hp:180, atk:30, def:12},
-      {name:"宿題写させてくれる学生", hp:170, atk:34, def:13},
-      {name:"過去問持ってる学生", hp:200, atk:28, def:14} ],
-  A:[ {name:"阿波賀校長",     hp:280, atk:62, def:22},
-      {name:"早坂学生主事",   hp:320, atk:50, def:20},
-      {name:"平野学先生",     hp:260, atk:65, def:24} ],
+  F:[ {name:"課題未提出学生", hp:60, atk:12, def:2, desc:"口ぐせは「明日出します」。明日は永遠に来ない。"},
+      {name:"居眠り学生",     hp:75, atk:8,  def:3, desc:"授業中の記憶がない。夢の中では成績優秀。"},
+      {name:"停寮学生",       hp:80, atk:9,  def:2, desc:"寮則を破った代償は大きかった。"},
+      {name:"訓告学生",       hp:65, atk:11, def:3, desc:"反省文の執筆速度だけは学内トップクラス。"} ],
+  C:[ {name:"無趣味な学生",   hp:110, atk:16, def:6, desc:"休日は寝て終わる。それはそれで幸せらしい。"},
+      {name:"専門教科も好きではない学生", hp:95, atk:22, def:5, desc:"なぜ高専に入ったのかは本人にも謎。"},
+      {name:"ぼっちな学生",   hp:130, atk:15, def:6, desc:"昼休みは非常階段で過ごす。実は強い。"},
+      {name:"帰宅部学生",     hp:120, atk:17, def:7, desc:"帰宅速度は学内最速。逃げ足も速い。"},
+      {name:"根暗な学生",     hp:105, atk:20, def:8, desc:"目は合わせてくれないが、夜行性で粘り強い。"} ],
+  B:[ {name:"コンテスト優勝学生", hp:160, atk:38, def:11, desc:"高専ロボコンの星。技術力はホンモノ。"},
+      {name:"成績優秀学生",   hp:180, atk:30, def:12, desc:"クラスの平均点を一人で押し上げる。"},
+      {name:"宿題写させてくれる学生", hp:170, atk:34, def:13, desc:"みんなの命綱。テスト前は行列ができる。"},
+      {name:"過去問持ってる学生", hp:200, atk:28, def:14, desc:"代々受け継がれる秘伝の資料を持つ。"} ],
+  A:[ {name:"阿波賀校長",     hp:280, atk:62, def:22, desc:"名大から来た。エディンバラ大学名誉博士。"},
+      {name:"早坂学生主事",   hp:320, atk:50, def:20, desc:"怒らせてはいけない人ランキング不動の1位。"},
+      {name:"平野学先生",     hp:260, atk:65, def:24, desc:"名前が「学」。学ぶために生まれてきた男。"} ],
 };
 // スターター配布用：各学科の学科長（Aランク）
 const DEPT_HEADS = {
-  M:{name:"鬼頭俊介学科長", hp:290, atk:60, def:22},
-  E:{name:"光本真一学科長", hp:290, atk:60, def:22},
-  I:{name:"江﨑信行学科長", hp:290, atk:60, def:22},
-  C:{name:"小林睦学科長",   hp:290, atk:60, def:22},
-  A:{name:"鈴木健次学科長", hp:290, atk:60, def:22},
+  M:{name:"鬼頭俊介学科長", hp:290, atk:60, def:22, desc:"機械のことなら何でも直す、M科の大黒柱。"},
+  E:{name:"光本真一学科長", hp:290, atk:60, def:22, desc:"回路も人脈も太い、E科の電源。"},
+  I:{name:"江﨑信行学科長", hp:290, atk:60, def:22, desc:"どんなバグも一目で見抜く、I科の頭脳。"},
+  C:{name:"小林睦学科長",   hp:290, atk:60, def:22, desc:"コンクリートより固い信頼、C科の礎。"},
+  A:{name:"鈴木健次学科長", hp:290, atk:60, def:22, desc:"図面にもデザインにも妥協しない、A科の巨匠。"},
 };
+// 名前→説明の逆引き（人材カード表示用）
+const UNIT_DESC = {};
+Object.values(UNIT_POOL).flat().forEach(b=>UNIT_DESC[b.name]=b.desc);
+Object.values(DEPT_HEADS).forEach(b=>UNIT_DESC[b.name]=b.desc);
 const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
 const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
 
@@ -402,7 +417,15 @@ const OLD_PID = localStorage.getItem("koyo_pid");
 let me=null, buildings={}, rankData={}, geo=null, curB=null, curSub=null, selUnits=new Set(), rankSynced=false;
 const $ = id=>document.getElementById(id);
 const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2200); }
+function toast(msg,ms){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),ms||2200); }
+// 図鑑説明（一覧行の名前タップで表示）
+function showDesc(type,k){
+  let name,txt;
+  if(type==="item"){ name=ITEMS[k].name; txt=ITEMS[k].desc; }
+  else if(type==="mat"){ name=MATERIALS[k]; txt=MAT_DESC[k]; }
+  else{ name=EQUIPS[k].name; txt=`${EQUIPS[k].lore}（効果: ${EQUIPS[k].desc}）`; }
+  toast(`${name}｜${txt}`, 4500);
+}
 
 /* =============== ログイン =============== */
 const AUTH_ERR = {
@@ -1027,7 +1050,8 @@ $("gachaBtn").onclick=()=>{
     setTimeout(()=>{
       $("gachaMachine").classList.remove("spin");
       $("gachaResult").innerHTML=`<div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><span class="badge">${elmIco(u.elm)}</span><b>${esc(u.name)}</b></div>
-        <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>`;
+        <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>
+        ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>`;
     },900);
   });
 };
@@ -1048,9 +1072,10 @@ function sortUnits(units, sortKey){
 }
 function renderUnits(){
   if(!me) return;
-  $("itemLine").innerHTML="回復: "+Object.entries(ITEMS).map(([k,it])=>`${it.name}×${me.items?.[k]||0}`).join("　");
-  $("equipLine").innerHTML="装備: "+Object.entries(EQUIPS).map(([k,e])=>`${e.name}×${me.equips?.[k]||0}`).join("　");
-  $("matLine").innerHTML="素材: "+Object.entries(MATERIALS).map(([k,n])=>`${n}×${me.materials?.[k]||0}`).join("　");
+  const tap='style="text-decoration:underline dotted; cursor:pointer"';
+  $("itemLine").innerHTML="回復: "+Object.entries(ITEMS).map(([k,it])=>`<span ${tap} onclick="showDesc('item','${k}')">${it.name}×${me.items?.[k]||0}</span>`).join("　");
+  $("equipLine").innerHTML="装備: "+Object.entries(EQUIPS).map(([k,e])=>`<span ${tap} onclick="showDesc('equip','${k}')">${e.name}×${me.equips?.[k]||0}</span>`).join("　");
+  $("matLine").innerHTML="素材: "+Object.entries(MATERIALS).map(([k,n])=>`<span ${tap} onclick="showDesc('mat','${k}')">${n}×${me.materials?.[k]||0}</span>`).join("　");
   $("sortLine").innerHTML="並び: "+Object.entries(UNIT_SORTS).map(([k,n])=>
     `<button class="mini ${unitSort===k?"sel":""}" onclick="setUnitSort('${k}')">${n}</button>`).join("");
   $("elmLine").innerHTML="属性: "+`<button class="mini ${unitFilter==="all"?"sel":""}" onclick="setUnitFilter('all')">全部</button>`+
@@ -1073,6 +1098,7 @@ function renderUnits(){
         ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}</div>
+      ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
       ${u.defendingAt?'<div class="note">回復・装備変更するには呼び戻してね</div>':
         `<div class="row" style="margin:6px 0 0">${Object.entries(ITEMS).map(([k,it])=>
           `<button class="mini" ${(me.items?.[k]||0)<1||u.hp>=u.maxHp?"disabled":""} onclick="useItem('${id}','${k}')">${it.name}</button>`).join("")}</div>`+eqRow}`;
