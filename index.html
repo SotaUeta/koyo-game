@@ -352,7 +352,7 @@ const EQUIPS = {
   suit:  {name:"🤵スーツ",       desc:"守り+50",             lore:"就活の戦闘服。着ると背筋が伸びる。"},
   pc:    {name:"💻パソコン",     desc:"素材ドロップ量1.2倍", lore:"高専生の相棒。膝の上でコンパイルが走る。"},
 };
-const EQUIP_DROP_RATE = 0.1; // 10回に1回くらい
+const EQUIP_DROP_RATE = 0.5; // 10回に1回くらい
 function eqAtk(u){ let a=u.atk; if(u.equip==="toygun") a+=50; else if(u.equip==="osake") a=Math.round(a*1.5); return a; }
 function eqDef(u){ let d=u.def; if(u.equip==="suit") d+=50; else if(u.equip==="jisshu") d=Math.round(d*1.5); return d; }
 
