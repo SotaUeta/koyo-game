@@ -383,6 +383,10 @@ const ELM_ADV = 1.5; // 有利属性のダメージ倍率
 const elmIco = k => ELEMENTS[k] ? ELEMENTS[k].ico+ELEMENTS[k].name : "";
 const elmMult = (a,d) => (a&&d&&ELEMENTS[a]?.beats===d) ? ELM_ADV : 1;
 
+// クリティカル: ときどき（15%）ダメージ2倍
+const CRIT_RATE = 0.15, CRIT_MULT = 2;
+const critRoll = () => Math.random()<CRIT_RATE ? CRIT_MULT : 1;
+
 // HPはローマ字表記が短いほど高め・攻撃力は画数が多いほど高め、の傾向で調整済み
 const UNIT_POOL = {
   F:[ {name:"課題未提出学生", hp:60, atk:12, def:2, desc:"口ぐせは「明日出します」。明日は永遠に来ない。"},
@@ -927,21 +931,23 @@ function runBattle(bid,b){
       if(u.hp<=0) continue;
       const tgt=D.find(d=>d.hp>0);
       if(tgt){
-        const mult=elmMult(u.elm,tgt.elm);
-        const dmg=Math.max(1,Math.round((eqAtk(u)-tgt.def)*mult));
+        const mult=elmMult(u.elm,tgt.elm), crit=critRoll();
+        const dmg=Math.max(1,Math.round((eqAtk(u)-tgt.def)*mult*crit));
         tgt.hp-=dmg;
-        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}`});
+        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}`});
         if(tgt.hp<=0){ tgt.hp=0; kills++; mats+=2; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
       }else{
-        const dmg=Math.max(1,eqAtk(u)-bDef);
+        const crit=critRoll();
+        const dmg=Math.max(1,Math.round((eqAtk(u)-bDef)*crit));
+        const cr=crit>1?"（💥クリティカル！）":"";
         buildingHits++; mats+=1;
         if(b.type==="facility"){
           bhp-=dmg;
-          log.push({c:"atk",t:`${u.name} → 建物に ${dmg}ダメージ`});
+          log.push({c:"atk",t:`${u.name} → 建物に ${dmg}ダメージ${cr}`});
           if(bhp<=0){ captured=true; break; }
         }else{
           bhp=Math.max(1,bhp-dmg); // 拠点HPは0にならない
-          log.push({c:"atk",t:`${u.name} → 拠点に ${dmg}ダメージ`});
+          log.push({c:"atk",t:`${u.name} → 拠点に ${dmg}ダメージ${cr}`});
         }
       }
     }
@@ -953,10 +959,10 @@ function runBattle(bid,b){
       if(d.hp<=0) continue;
       const t=aliveA[Math.floor(Math.random()*aliveA.length)];
       if(!t||t.hp<=0) continue;
-      const mult=elmMult(d.elm,t.elm);
-      const dmg=Math.max(1,Math.round((d.atk-eqDef(t))*mult));
+      const mult=elmMult(d.elm,t.elm), crit=critRoll();
+      const dmg=Math.max(1,Math.round((d.atk-eqDef(t))*mult*crit));
       t.hp-=dmg;
-      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}`});
+      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}`});
       if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
     }
     if(!D.some(d=>d.hp>0)){
