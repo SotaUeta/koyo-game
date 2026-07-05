@@ -126,6 +126,7 @@ button{font-family:inherit;}
 .rank{border-radius:4px; padding:0 6px; font-weight:bold; font-size:11px; color:#111;}
 .rank.F{background:#8d93a8;} .rank.C{background:#7ad14f;} .rank.B{background:#57b6ff;} .rank.A{background:var(--gold); box-shadow:0 0 8px var(--gold);}
 .stat{color:var(--dim);}
+.badge.terb{color:var(--gold); border-color:var(--gold);}
 .mini{font-size:11px; border-radius:6px; border:1px solid var(--line); background:#0006; color:var(--text); padding:4px 8px; cursor:pointer;}
 .mini:disabled{opacity:.35;}
 .mini.sel{background:var(--gold); color:#111; border-color:var(--gold);}
@@ -229,20 +230,22 @@ const BETA_MODE = true;
 const TAP_RADIUS_M = 120;
 
 // マップ画像上の位置(x,y は%)と、実際のGPS座標(lat,lng ※本番前に現地で計測して調整)
+// terrain: 施設の地形属性。その属性の人材はこの建物でのバトル中、攻守がTERRAIN_MULT倍になる
+// terLore: 理由のフレーバー文（「〜ので」で終わる形。後ろに「◯◯属性が強い！」が付く）。学科棟（拠点）には地形なし
 const BUILDING_DEFS = [
  {id:"m_base", name:"機械工学科棟",   ico:"🏫", type:"base", fac:"M", x:36, y:28, lat:35.0952, lng:137.1712},
  {id:"e_base", name:"電気・電子システム工学科棟", ico:"🏫", type:"base", fac:"E", x:46, y:31, lat:35.0950, lng:137.1717},
  {id:"i_base", name:"情報工学科棟",   ico:"🏫", type:"base", fac:"I", x:21, y:34, lat:35.0949, lng:137.1704},
  {id:"c_base", name:"環境都市工学科棟", ico:"🏫", type:"base", fac:"C", x:19, y:24, lat:35.0955, lng:137.1703},
  {id:"a_base", name:"建築学科棟",     ico:"🏫", type:"base", fac:"A", x:50, y:27, lat:35.0953, lng:137.1720},
- {id:"library", name:"図書館",        ico:"📚", type:"facility", x:31, y:9,  lat:35.0962, lng:137.1709},
- {id:"gym1", name:"第1体育館",        ico:"🏀", type:"facility", x:69, y:11, lat:35.0961, lng:137.1729},
- {id:"gym2", name:"第2体育館",        ico:"🤸", type:"facility", x:7,  y:20, lat:35.0957, lng:137.1697},
- {id:"cafeteria", name:"食堂",        ico:"🍛", type:"facility", x:31, y:60, lat:35.0938, lng:137.1709},
- {id:"mono", name:"ものづくりセンター", ico:"🔧", type:"facility", x:33, y:45, lat:35.0944, lng:137.1710},
- {id:"pool", name:"プール",           ico:"🏊", type:"facility", x:38, y:54, lat:35.0940, lng:137.1713},
- {id:"track", name:"陸上競技場",      ico:"🏃", type:"facility", x:66, y:57, lat:35.0938, lng:137.1728},
- {id:"tennis", name:"テニスコート",   ico:"🎾", type:"facility", x:7,  y:38, lat:35.0948, lng:137.1697},
+ {id:"library", name:"図書館",        ico:"📚", type:"facility", x:31, y:9,  lat:35.0962, lng:137.1709, terrain:"ice",     terLore:"冷房がキンキンに効いているので"},
+ {id:"gym1", name:"第1体育館",        ico:"🏀", type:"facility", x:69, y:11, lat:35.0961, lng:137.1729, terrain:"thunder", terLore:"歓声が雷鳴のように響くので"},
+ {id:"gym2", name:"第2体育館",        ico:"🤸", type:"facility", x:7,  y:20, lat:35.0957, lng:137.1697, terrain:"earth",   terLore:"マットの上でどっしり踏ん張れるので"},
+ {id:"cafeteria", name:"食堂",        ico:"🍛", type:"facility", x:31, y:60, lat:35.0938, lng:137.1709, terrain:"fire",    terLore:"厨房の火が燃えさかっているので"},
+ {id:"mono", name:"ものづくりセンター", ico:"🔧", type:"facility", x:33, y:45, lat:35.0944, lng:137.1710, terrain:"fire",   terLore:"溶接の火花が飛び散っているので"},
+ {id:"pool", name:"プール",           ico:"🏊", type:"facility", x:38, y:54, lat:35.0940, lng:137.1713, terrain:"water",   terLore:"水しぶきがあがるので"},
+ {id:"track", name:"陸上競技場",      ico:"🏃", type:"facility", x:66, y:57, lat:35.0938, lng:137.1728, terrain:"wind",    terLore:"吹きさらしなので"},
+ {id:"tennis", name:"テニスコート",   ico:"🎾", type:"facility", x:7,  y:38, lat:35.0948, lng:137.1697, terrain:"wind",    terLore:"風を読んでサーブを打つ場所なので"},
 ];
 </script>
 <!-- ============================================================ -->
@@ -389,6 +392,17 @@ const ELM_KEYS = Object.keys(ELEMENTS);
 const ELM_ADV = 1.5; // 有利属性のダメージ倍率
 const elmIco = k => ELEMENTS[k] ? ELEMENTS[k].ico+ELEMENTS[k].name : "";
 const elmMult = (a,d) => (a&&d&&ELEMENTS[a]?.beats===d) ? ELM_ADV : 1;
+
+// 地形ボーナス: 建物のterrainと同じ属性の人材は、その建物でのバトル中攻守が1.2倍（攻撃側・防衛側とも）
+const TERRAIN_MULT = 1.2;
+const terrainOf = bid => BUILDING_DEFS.find(d=>d.id===bid)?.terrain || null;
+const terMult = (elm,ter) => (ter && elm===ter) ? TERRAIN_MULT : 1;
+// 理由つきの説明文（例: ⛰ 吹きさらしなので🌀風属性が強い！（攻守×1.2））
+function terrainNote(bid){
+  const d=BUILDING_DEFS.find(x=>x.id===bid);
+  if(!d?.terrain) return "";
+  return `⛰ ${d.terLore||""}${elmIco(d.terrain)}属性が強い！（攻守×${TERRAIN_MULT}）`;
+}
 
 // クリティカル: ときどき（15%）ダメージ2倍
 const CRIT_RATE = 0.15, CRIT_MULT = 2;
@@ -692,7 +706,7 @@ function renderMap(){
     const ownerC = b.owner?FACTIONS[b.owner].color:"#888";
     el.style.borderColor=ownerC;
     el.style.boxShadow=`0 0 10px ${ownerC}, 0 2px 8px #0009`;
-    el.innerHTML=`${def.ico}<span class="nm">${esc(def.name)}${b.owner?("("+b.owner+")"):""}</span>`;
+    el.innerHTML=`${def.ico}<span class="nm">${esc(def.name)}${b.owner?("("+b.owner+")"):""}${def.terrain?ELEMENTS[def.terrain].ico:""}</span>`;
     if(Date.now()-(b.lastBattleAt||0)<60000) el.classList.add("battling");
     if(!inRange(def)) el.classList.add("far");
     el.onclick=()=>{
@@ -727,11 +741,13 @@ function renderBuilding(bid){
   const f = b.owner?FACTIONS[b.owner]:null;
   const defs = Object.values(b.defenders||{});
   const hpr = b.hp/b.maxHp;
+  const ter = terrainOf(bid);
   let html=`
     <h2>${def.ico} ${esc(b.name)}
       <span class="badge" style="${f?`background:${f.color};color:${f.tc}`:""}">${f?f.short+"科の"+(b.type==="base"?"拠点":"施設"):"中立"}</span>
       <button class="xbtn" onclick="closeOv('ovB')">閉じる</button></h2>
     <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 引きこもり ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
+    ${ter?`<div class="sub">${terrainNote(bid)}</div>`:""}
     <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
     <div class="note">HP ${b.hp} / ${b.maxHp}</div>`;
 
@@ -761,7 +777,9 @@ function viewDefend(){
   curSub=viewDefend;
   const b=buildings[curB];
   const myDef=(b.defenders||{})[PID];
+  const ter=terrainOf(curB);
   let html=`<h3 style="font-size:13px;">🛡 防衛（この建物に1人1体まで）</h3>`;
+  if(ter) html+=`<div class="note">${terrainNote(curB)} 同じ属性を置くとお得</div>`;
   if(myDef){
     html+=`<div class="card"><div class="top">配置中: <b>${esc(myDef.name)}</b></div>
       <div class="stat">HP ${myDef.hp}/${myDef.maxHp}</div>
@@ -770,8 +788,9 @@ function viewDefend(){
     const list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
     if(!list.length) html+=`<p class="note">配置できる人材がいない（HP0か防衛中）。ガシャで引くか回復しよう。</p>`;
     list.forEach(([id,u])=>{
-      html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b></div>
-        <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</div>
+      const tb=ter&&u.elm===ter;
+      html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b></div>
+        <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div>
         <button class="mini" onclick="placeDef('${id}')">引きこもりとして置く</button></div>`;
     });
   }
@@ -892,7 +911,9 @@ function viewAttack(){
   const hasAny=list.length>0;
   if(atkFilter!=="all") list=list.filter(([id,u])=>u.elm===atkFilter);
   list=sortUnits(list, atkSort);
+  const ter=terrainOf(curB);
   let html=`<h3 style="font-size:13px;">⚔ 出撃メンバーを選ぶ（最大6体）</h3>`;
+  if(ter) html+=`<div class="note">${terrainNote(curB)}</div>`;
   const pres=[]; for(let n=0;n<PRESET_MAX;n++) if(getPreset(n)) pres.push(n);
   if(pres.length) html+=`<div class="matline">プリセット: `+pres.map(n=>
     `<button class="mini" onclick="applyPreset(${n})">⚡ ${n+1}を呼ぶ</button>`).join("")+`</div>`;
@@ -903,9 +924,10 @@ function viewAttack(){
     ELM_KEYS.map(k=>`<button class="mini ${atkFilter===k?"sel":""}" onclick="setAtkFilter('${k}')">${ELEMENTS[k].ico}${ELEMENTS[k].name}</button>`).join("")+`</div>`;
   if(!list.length) html+=`<p class="note">${hasAny?"この属性の出撃できる人材はいない。":"出撃できる人材がいない。ガシャで引くか回復しよう。"}</p>`;
   list.forEach(([id,u])=>{
-    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
+    const tb=ter&&u.elm===ter;
+    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
       <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
-      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</div></div>`;
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div></div>`;
   });
   html+=`<div class="atkfloat"><button class="bigbtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
   $("bSub").innerHTML=html;
@@ -937,10 +959,14 @@ function runBattle(bid,b){
   }
   const bDef=3*b.defLv, bAtk=(b.type==="base"?8:5)+3*b.atkLv;
   const defFacMult = b.owner?multiplier(b.owner):1;
+  // 地形ボーナス（攻撃側・防衛側とも、建物の属性と同じ人材は攻守UP）
+  const ter=terrainOf(bid);
+  const tm=e=>terMult(e,ter);
   let mats=0, kills=0, buildingHits=0, captured=false;
   const koyoGain={}; // 防衛側プレイヤーへのこうよう
 
   log.push({c:"sys",t:`⚔ ${b.name} への攻撃開始！（防衛${D.length}体）`});
+  if(ter) log.push({c:"sys",t:terrainNote(bid)});
   const MAX_ROUNDS=10;
   for(let r=1;r<=MAX_ROUNDS;r++){
     log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───`});
@@ -950,13 +976,13 @@ function runBattle(bid,b){
       const tgt=D.find(d=>d.hp>0);
       if(tgt){
         const mult=elmMult(u.elm,tgt.elm), crit=critRoll();
-        const dmg=Math.max(1,Math.round((eqAtk(u)-tgt.def)*mult*crit));
+        const dmg=Math.max(1,Math.round((eqAtk(u)*tm(u.elm)-tgt.def*tm(tgt.elm))*mult*crit));
         tgt.hp-=dmg;
-        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}`});
+        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(u.elm)>1?"（⛰地形ボーナス！）":""}`});
         if(tgt.hp<=0){ tgt.hp=0; kills++; mats+=2; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
       }else{
         const crit=critRoll();
-        const dmg=Math.max(1,Math.round((eqAtk(u)-bDef)*crit));
+        const dmg=Math.max(1,Math.round((eqAtk(u)*tm(u.elm)-bDef)*crit));
         const cr=crit>1?"（💥クリティカル！）":"";
         buildingHits++; mats+=1;
         if(b.type==="facility"){
@@ -978,9 +1004,9 @@ function runBattle(bid,b){
       const t=aliveA[Math.floor(Math.random()*aliveA.length)];
       if(!t||t.hp<=0) continue;
       const mult=elmMult(d.elm,t.elm), crit=critRoll();
-      const dmg=Math.max(1,Math.round((d.atk-eqDef(t))*mult*crit));
+      const dmg=Math.max(1,Math.round((d.atk*tm(d.elm)-eqDef(t)*tm(t.elm))*mult*crit));
       t.hp-=dmg;
-      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}`});
+      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}`});
       if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
     }
     if(!D.some(d=>d.hp>0)){
@@ -988,7 +1014,7 @@ function runBattle(bid,b){
       const t2=A.filter(u=>u.hp>0);
       if(t2.length){
         const t=t2[Math.floor(Math.random()*t2.length)];
-        const dmg=Math.max(1,bAtk-eqDef(t));
+        const dmg=Math.max(1,Math.round(bAtk-eqDef(t)*tm(t.elm)));
         t.hp=Math.max(0,t.hp-dmg);
         log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${dmg}ダメージ`});
         if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
