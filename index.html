@@ -726,7 +726,10 @@ function renderBuilding(bid){
       <button class="bigbtn" onclick="viewRation()"><span class="ico">🎁</span>配給</button>
     </div><div id="bSub"></div>`;
   }else{
-    html+=`<div class="row" id="atkOpenRow"${curSub===viewAttack?' style="display:none"':''}><button class="bigbtn" onclick="viewAttack()"><span class="ico">⚔</span>攻撃する</button></div><div id="bSub"></div>`;
+    html+=`<div class="row" id="atkOpenRow"${curSub===viewAttack?' style="display:none"':''}>
+      <button class="bigbtn" onclick="viewAttack()"><span class="ico">⚔</span>攻撃する</button>
+      <button class="bigbtn" onclick="viewRation()"><span class="ico">🎁</span>配給</button>
+    </div><div id="bSub"></div>`;
   }
   $("bSheet").innerHTML=html;
   if(curSub && $("bSub")) curSub();
@@ -815,14 +818,14 @@ function rationItem(bid){
   return (slot+h)%2===0?"enadori":"pan";
 }
 function rationAmt(bid,it){
-  const hLv=buildings[bid]?.hatakeLv||1;
+  const b=buildings[bid];
+  if(!b || b.owner!==me?.faction) return 1; // 敵陣営・中立の建物は最低量
+  const hLv=b.hatakeLv||1;
   return it==="aset" ? Math.max(1,Math.floor(hLv/2)) : hLv;
 }
-// 自陣営の建物で、前回の受け取りから時間が経っていれば受け取り可能
+// 前回の受け取りから時間が経っていれば受け取り可能（敵陣営・中立の建物は最低量）
 function rationReady(bid){
-  if(!me) return false;
-  const b=buildings[bid];
-  if(!b||b.owner!==me.faction) return false;
+  if(!me||!buildings[bid]) return false;
   return Date.now()-((me.rations||{})[bid]||0)>=RATION_MS;
 }
 function viewRation(){
@@ -832,11 +835,12 @@ function viewRation(){
   const it=rationItem(curB);
   const amt = rationAmt(curB,it);
   const what=`${ITEMS[it].name} ×${amt}`;
+  const hint=buildings[curB]?.owner===me.faction?"（🌾畑Lvで増える）":"（自陣営の建物じゃないので最低量）";
   if(left>0){
     const m=Math.ceil(left/60000);
-    $("bSub").innerHTML=`<div class="card center">🎁 次の配給まで あと約${m}分<br><span class="note">受け取れるもの: ${what}（🌾畑Lvで増える）</span></div>`;
+    $("bSub").innerHTML=`<div class="card center">🎁 次の配給まで あと約${m}分<br><span class="note">受け取れるもの: ${what}${hint}</span></div>`;
   }else{
-    $("bSub").innerHTML=`<div class="card center">🎁 配給が届いてる！<br><b>${what}</b><br>
+    $("bSub").innerHTML=`<div class="card center">🎁 配給が届いてる！<br><b>${what}</b><span class="note">${hint}</span><br>
       <button class="mini" onclick="claimRation()">受け取る</button></div>`;
   }
 }
