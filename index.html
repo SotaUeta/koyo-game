@@ -230,21 +230,22 @@ const BETA_MODE = true;
 const TAP_RADIUS_M = 120;
 
 // マップ画像上の位置(x,y は%)と、実際のGPS座標(lat,lng ※本番前に現地で計測して調整)
-// terrain: 建物の地形属性。その属性の人材はこの建物でのバトル中、攻守がTERRAIN_MULT倍になる
+// terrain: 施設の地形属性。その属性の人材はこの建物でのバトル中、攻守がTERRAIN_MULT倍になる
+// terLore: 理由のフレーバー文（「〜ので」で終わる形。後ろに「◯◯属性が強い！」が付く）。学科棟（拠点）には地形なし
 const BUILDING_DEFS = [
- {id:"m_base", name:"機械工学科棟",   ico:"🏫", type:"base", fac:"M", x:36, y:28, lat:35.0952, lng:137.1712, terrain:"fire"},    // エンジンと溶接の熱気
- {id:"e_base", name:"電気・電子システム工学科棟", ico:"🏫", type:"base", fac:"E", x:46, y:31, lat:35.0950, lng:137.1717, terrain:"thunder"}, // 電気といえば雷
- {id:"i_base", name:"情報工学科棟",   ico:"🏫", type:"base", fac:"I", x:21, y:34, lat:35.0949, lng:137.1704, terrain:"ice"},     // サーバー室の冷房
- {id:"c_base", name:"環境都市工学科棟", ico:"🏫", type:"base", fac:"C", x:19, y:24, lat:35.0955, lng:137.1703, terrain:"water"},  // 水理実験
- {id:"a_base", name:"建築学科棟",     ico:"🏫", type:"base", fac:"A", x:50, y:27, lat:35.0953, lng:137.1720, terrain:"earth"},   // 基礎とコンクリート
- {id:"library", name:"図書館",        ico:"📚", type:"facility", x:31, y:9,  lat:35.0962, lng:137.1709, terrain:"ice"},     // 冷房がよく効いている
- {id:"gym1", name:"第1体育館",        ico:"🏀", type:"facility", x:69, y:11, lat:35.0961, lng:137.1729, terrain:"thunder"}, // 歓声が雷のように響く
- {id:"gym2", name:"第2体育館",        ico:"🤸", type:"facility", x:7,  y:20, lat:35.0957, lng:137.1697, terrain:"earth"},   // 床にどっしり足をつけて
- {id:"cafeteria", name:"食堂",        ico:"🍛", type:"facility", x:31, y:60, lat:35.0938, lng:137.1709, terrain:"fire"},    // 厨房の火力
- {id:"mono", name:"ものづくりセンター", ico:"🔧", type:"facility", x:33, y:45, lat:35.0944, lng:137.1710, terrain:"fire"},   // 溶接の火花
- {id:"pool", name:"プール",           ico:"🏊", type:"facility", x:38, y:54, lat:35.0940, lng:137.1713, terrain:"water"},   // いわずもがな
- {id:"track", name:"陸上競技場",      ico:"🏃", type:"facility", x:66, y:57, lat:35.0938, lng:137.1728, terrain:"wind"},    // 吹きさらしのトラック
- {id:"tennis", name:"テニスコート",   ico:"🎾", type:"facility", x:7,  y:38, lat:35.0948, lng:137.1697, terrain:"wind"},    // 風を読んでサーブ
+ {id:"m_base", name:"機械工学科棟",   ico:"🏫", type:"base", fac:"M", x:36, y:28, lat:35.0952, lng:137.1712},
+ {id:"e_base", name:"電気・電子システム工学科棟", ico:"🏫", type:"base", fac:"E", x:46, y:31, lat:35.0950, lng:137.1717},
+ {id:"i_base", name:"情報工学科棟",   ico:"🏫", type:"base", fac:"I", x:21, y:34, lat:35.0949, lng:137.1704},
+ {id:"c_base", name:"環境都市工学科棟", ico:"🏫", type:"base", fac:"C", x:19, y:24, lat:35.0955, lng:137.1703},
+ {id:"a_base", name:"建築学科棟",     ico:"🏫", type:"base", fac:"A", x:50, y:27, lat:35.0953, lng:137.1720},
+ {id:"library", name:"図書館",        ico:"📚", type:"facility", x:31, y:9,  lat:35.0962, lng:137.1709, terrain:"ice",     terLore:"冷房がキンキンに効いているので"},
+ {id:"gym1", name:"第1体育館",        ico:"🏀", type:"facility", x:69, y:11, lat:35.0961, lng:137.1729, terrain:"thunder", terLore:"歓声が雷鳴のように響くので"},
+ {id:"gym2", name:"第2体育館",        ico:"🤸", type:"facility", x:7,  y:20, lat:35.0957, lng:137.1697, terrain:"earth",   terLore:"マットの上でどっしり踏ん張れるので"},
+ {id:"cafeteria", name:"食堂",        ico:"🍛", type:"facility", x:31, y:60, lat:35.0938, lng:137.1709, terrain:"fire",    terLore:"厨房の火が燃えさかっているので"},
+ {id:"mono", name:"ものづくりセンター", ico:"🔧", type:"facility", x:33, y:45, lat:35.0944, lng:137.1710, terrain:"fire",   terLore:"溶接の火花が飛び散っているので"},
+ {id:"pool", name:"プール",           ico:"🏊", type:"facility", x:38, y:54, lat:35.0940, lng:137.1713, terrain:"water",   terLore:"水しぶきがあがるので"},
+ {id:"track", name:"陸上競技場",      ico:"🏃", type:"facility", x:66, y:57, lat:35.0938, lng:137.1728, terrain:"wind",    terLore:"吹きさらしなので"},
+ {id:"tennis", name:"テニスコート",   ico:"🎾", type:"facility", x:7,  y:38, lat:35.0948, lng:137.1697, terrain:"wind",    terLore:"風を読んでサーブを打つ場所なので"},
 ];
 </script>
 <!-- ============================================================ -->
@@ -396,6 +397,12 @@ const elmMult = (a,d) => (a&&d&&ELEMENTS[a]?.beats===d) ? ELM_ADV : 1;
 const TERRAIN_MULT = 1.2;
 const terrainOf = bid => BUILDING_DEFS.find(d=>d.id===bid)?.terrain || null;
 const terMult = (elm,ter) => (ter && elm===ter) ? TERRAIN_MULT : 1;
+// 理由つきの説明文（例: ⛰ 吹きさらしなので🌀風属性が強い！（攻守×1.2））
+function terrainNote(bid){
+  const d=BUILDING_DEFS.find(x=>x.id===bid);
+  if(!d?.terrain) return "";
+  return `⛰ ${d.terLore||""}${elmIco(d.terrain)}属性が強い！（攻守×${TERRAIN_MULT}）`;
+}
 
 // クリティカル: ときどき（15%）ダメージ2倍
 const CRIT_RATE = 0.15, CRIT_MULT = 2;
@@ -739,7 +746,8 @@ function renderBuilding(bid){
     <h2>${def.ico} ${esc(b.name)}
       <span class="badge" style="${f?`background:${f.color};color:${f.tc}`:""}">${f?f.short+"科の"+(b.type==="base"?"拠点":"施設"):"中立"}</span>
       <button class="xbtn" onclick="closeOv('ovB')">閉じる</button></h2>
-    <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 引きこもり ${defs.length}体${ter?` ・ ⛰地形: ${elmIco(ter)}属性は攻守×${TERRAIN_MULT}`:""}${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
+    <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 引きこもり ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
+    ${ter?`<div class="sub">${terrainNote(bid)}</div>`:""}
     <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
     <div class="note">HP ${b.hp} / ${b.maxHp}</div>`;
 
@@ -771,7 +779,7 @@ function viewDefend(){
   const myDef=(b.defenders||{})[PID];
   const ter=terrainOf(curB);
   let html=`<h3 style="font-size:13px;">🛡 防衛（この建物に1人1体まで）</h3>`;
-  if(ter) html+=`<div class="note">⛰ この建物は ${elmIco(ter)}属性の攻守が×${TERRAIN_MULT}になる地形！同じ属性を置くとお得</div>`;
+  if(ter) html+=`<div class="note">${terrainNote(curB)} 同じ属性を置くとお得</div>`;
   if(myDef){
     html+=`<div class="card"><div class="top">配置中: <b>${esc(myDef.name)}</b></div>
       <div class="stat">HP ${myDef.hp}/${myDef.maxHp}</div>
@@ -905,7 +913,7 @@ function viewAttack(){
   list=sortUnits(list, atkSort);
   const ter=terrainOf(curB);
   let html=`<h3 style="font-size:13px;">⚔ 出撃メンバーを選ぶ（最大6体）</h3>`;
-  if(ter) html+=`<div class="note">⛰ この建物は ${elmIco(ter)}属性の攻守が×${TERRAIN_MULT}になる地形！</div>`;
+  if(ter) html+=`<div class="note">${terrainNote(curB)}</div>`;
   const pres=[]; for(let n=0;n<PRESET_MAX;n++) if(getPreset(n)) pres.push(n);
   if(pres.length) html+=`<div class="matline">プリセット: `+pres.map(n=>
     `<button class="mini" onclick="applyPreset(${n})">⚡ ${n+1}を呼ぶ</button>`).join("")+`</div>`;
@@ -958,7 +966,7 @@ function runBattle(bid,b){
   const koyoGain={}; // 防衛側プレイヤーへのこうよう
 
   log.push({c:"sys",t:`⚔ ${b.name} への攻撃開始！（防衛${D.length}体）`});
-  if(ter) log.push({c:"sys",t:`⛰ 地形ボーナス: ${elmIco(ter)}属性の人材は攻守×${TERRAIN_MULT}！`});
+  if(ter) log.push({c:"sys",t:terrainNote(bid)});
   const MAX_ROUNDS=10;
   for(let r=1;r<=MAX_ROUNDS;r++){
     log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───`});
