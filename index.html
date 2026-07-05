@@ -35,6 +35,15 @@ button{font-family:inherit;}
 #koyoBadge{color:var(--koyo);}
 #facBadge{font-weight:bold;}
 
+/* ===== event banner ===== */
+#eventBanner{
+  display:none; flex:0 0 auto; text-align:center; font-size:11px; padding:4px 6px;
+  background:linear-gradient(90deg,#a03c1d,#c2273d); letter-spacing:1px;
+  border-bottom:2px solid var(--line);
+  animation:evglow 1.2s ease-in-out infinite alternate;
+}
+@keyframes evglow{ from{filter:brightness(1);} to{filter:brightness(1.25);} }
+
 /* ===== tabs ===== */
 #main{flex:1 1 auto; overflow:auto; position:relative;}
 .tab{display:none; height:100%;}
@@ -283,6 +292,8 @@ const BUILDING_DEFS = [
   <button class="badge" id="logoutBtn" title="ログアウト">⏻</button>
 </div>
 
+<div id="eventBanner"></div>
+
 <div id="main">
   <div class="tab active" id="tab-map">
     <div id="mapWrap">
@@ -298,6 +309,7 @@ const BUILDING_DEFS = [
   <div class="tab" id="tab-gacha">
     <h2>人材ガシャ</h2>
     <p class="note">100円玉は5分ごとに1枚たまる（自然回復は最大5枚・ミッション報酬なら5枚を超えて持てる）</p>
+    <p class="note" id="eventSched"></p>
     <div id="gachaMachine">🎰</div>
     <div id="coinTimer" class="note"></div>
     <button id="gachaBtn">💰1枚で回す</button>
@@ -404,9 +416,9 @@ function terrainNote(bid){
   return `⛰ ${d.terLore||""}${elmIco(d.terrain)}属性が強い！（攻守×${TERRAIN_MULT}）`;
 }
 
-// クリティカル: ときどき（15%）ダメージ2倍
+// クリティカル: ときどき（15%）ダメージ2倍。💥テンションMAXタイム中は発生率アップ
 const CRIT_RATE = 0.15, CRIT_MULT = 2;
-const critRoll = () => Math.random()<CRIT_RATE ? CRIT_MULT : 1;
+const critRoll = () => Math.random()<CRIT_RATE*(eventActive("crit2")?EVENT_CRIT_MULT:1) ? CRIT_MULT : 1;
 
 // HPはローマ字表記が短いほど高め・攻撃力は画数が多いほど高め、の傾向で調整済み
 const UNIT_POOL = {
@@ -441,6 +453,29 @@ Object.values(UNIT_POOL).flat().forEach(b=>UNIT_DESC[b.name]=b.desc);
 Object.values(DEPT_HEADS).forEach(b=>UNIT_DESC[b.name]=b.desc);
 const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
 const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
+
+// イベント時間（毎日この時間帯に自動発動。start/endは"HH:MM"・端末のローカル時刻基準）
+const EVENTS = [
+  {id:"gachaA",   ico:"🎰", start:"08:30", end:"09:00", name:"モーニングガシャ",     desc:"Aランク排出率2倍"},
+  {id:"equip2",   ico:"🧦", start:"10:30", end:"10:40", name:"落とし物タイム",       desc:"装備ドロップ率2倍"},
+  {id:"drop2",    ico:"🎒", start:"12:10", end:"13:10", name:"昼休みの陣取り合戦",   desc:"全建物の素材ドロップ2倍"},
+  {id:"ration2",  ico:"🍩", start:"14:40", end:"14:50", name:"おやつタイム",         desc:"配給量2倍"},
+  {id:"crit2",    ico:"💥", start:"16:20", end:"17:00", name:"テンションMAXタイム",  desc:"クリティカル率2倍"},
+  {id:"defkoyo2", ico:"🛡", start:"18:30", end:"19:00", name:"深夜の防衛戦",         desc:"防衛で敵を倒すと🍁こうよう2倍"},
+];
+const EVENT_GACHA_A_MULT = 2; // gachaA: Aランク率の倍率（増えた分はF率から引く）
+const EVENT_DROP_MULT = 2;    // drop2: 素材ドロップの倍率
+const EVENT_EQUIP_MULT = 2;   // equip2: 装備ドロップ率の倍率
+const EVENT_RATION_MULT = 2;  // ration2: 配給量の倍率
+const EVENT_CRIT_MULT = 2;    // crit2: クリティカル率の倍率
+const EVENT_DEF_KOYO_MULT = 2;// defkoyo2: 防衛撃破こうようの倍率
+const evMin = s => { const [h,m]=s.split(":").map(Number); return h*60+m; };
+function eventActive(id){
+  const e=EVENTS.find(x=>x.id===id); if(!e) return false;
+  const d=new Date(), cur=d.getHours()*60+d.getMinutes();
+  return cur>=evMin(e.start) && cur<evMin(e.end);
+}
+const activeEvents = () => EVENTS.filter(e=>eventActive(e.id));
 
 // デイリーミッション（毎日0時リセット・報酬はコイン。COIN_MAXを超えて受け取れる）
 const MISSIONS = [
@@ -670,8 +705,18 @@ function renderHdr(){
   $("coinBadge").textContent="💰"+coinState(me).coins;
   $("koyoBadge").textContent="🍁"+(me.koyo||0);
 }
-setInterval(()=>{ if(me){ renderHdr(); renderGacha(); if(curB) renderBuilding(curB);} renderMap(); },5000);
+// イベントバナー（開催中は全タブ共通でヘッダー下に表示）＋ガシャタブの開催予定
+function renderEventBanner(){
+  const el=$("eventBanner"); if(!el) return;
+  const act=activeEvents();
+  el.textContent=act.map(e=>`🎉 ${e.ico}${e.name} 開催中！ ${e.desc}（〜${e.end}）`).join(" ／ ");
+  el.style.display=act.length?"block":"none";
+  const sc=$("eventSched");
+  if(sc) sc.innerHTML="🎉 毎日のイベント: "+EVENTS.map(e=>`${e.start}〜${e.end} ${e.ico}${e.name}（${e.desc}）`).join("　");
+}
+setInterval(()=>{ if(me){ renderHdr(); renderGacha(); if(curB) renderBuilding(curB);} renderMap(); renderEventBanner(); },5000);
 setInterval(()=>{ if(me) renderGachaTimer(); },1000);
+renderEventBanner();
 
 /* =============== 位置情報 =============== */
 function startGeo(){
@@ -858,10 +903,11 @@ function rationItem(bid){
   return (slot+h)%2===0?"enadori":"pan";
 }
 function rationAmt(bid,it){
+  const ev=eventActive("ration2")?EVENT_RATION_MULT:1; // 🍩おやつタイム
   const b=buildings[bid];
-  if(!b || b.owner!==me?.faction) return 1; // 敵陣営・中立の建物は最低量
+  if(!b || b.owner!==me?.faction) return 1*ev; // 敵陣営・中立の建物は最低量
   const hLv=b.hatakeLv||1;
-  return it==="aset" ? Math.max(1,Math.floor(hLv/2)) : hLv;
+  return (it==="aset" ? Math.max(1,Math.floor(hLv/2)) : hLv)*ev;
 }
 // 前回の受け取りから時間が経っていれば受け取り可能（敵陣営・中立の建物は最低量）
 function rationReady(bid){
@@ -875,7 +921,8 @@ function viewRation(){
   const it=rationItem(curB);
   const amt = rationAmt(curB,it);
   const what=`${ITEMS[it].name} ×${amt}`;
-  const hint=buildings[curB]?.owner===me.faction?"（🌾畑Lvで増える）":"（自陣営の建物じゃないので最低量）";
+  const hint=(buildings[curB]?.owner===me.faction?"（🌾畑Lvで増える）":"（自陣営の建物じゃないので最低量）")
+    +(eventActive("ration2")?"（🍩おやつタイム中で2倍！）":"");
   if(left>0){
     const m=Math.ceil(left/60000);
     $("bSub").innerHTML=`<div class="card center">🎁 次の配給まで あと約${m}分<br><span class="note">受け取れるもの: ${what}${hint}</span></div>`;
@@ -964,9 +1011,11 @@ function runBattle(bid,b){
   const tm=e=>terMult(e,ter);
   let mats=0, kills=0, buildingHits=0, captured=false;
   const koyoGain={}; // 防衛側プレイヤーへのこうよう
+  const evK=eventActive("defkoyo2")?EVENT_DEF_KOYO_MULT:1; // 🛡深夜の防衛戦
 
   log.push({c:"sys",t:`⚔ ${b.name} への攻撃開始！（防衛${D.length}体）`});
   if(ter) log.push({c:"sys",t:terrainNote(bid)});
+  if(evK>1) log.push({c:"sys",t:`🛡 ${EVENTS.find(e=>e.id==="defkoyo2").name} 開催中！ 防衛側は撃破こうよう${EVENT_DEF_KOYO_MULT}倍`});
   const MAX_ROUNDS=10;
   for(let r=1;r<=MAX_ROUNDS;r++){
     log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───`});
@@ -1007,7 +1056,7 @@ function runBattle(bid,b){
       const dmg=Math.max(1,Math.round((d.atk*tm(d.elm)-eqDef(t)*tm(t.elm))*mult*crit));
       t.hp-=dmg;
       log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}`});
-      if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
+      if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+evK; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
     }
     if(!D.some(d=>d.hp>0)){
       // 建物の反撃
@@ -1023,10 +1072,11 @@ function runBattle(bid,b){
     if(!A.some(u=>u.hp>0)) { log.push({c:"sys",t:"全滅…撤退！"}); break; }
   }
 
-  // 素材ドロップ（倒した数＆建物ヒット×守備側倍率×💻パソコン装備）
+  // 素材ドロップ（倒した数＆建物ヒット×守備側倍率×💻パソコン装備×🎒イベント）
   const drop={};
   const pcN=A.filter(u=>u.equip==="pc").length;
-  const total=Math.max(1,Math.floor(mats*defFacMult*Math.pow(1.2,pcN)));
+  const evDrop=eventActive("drop2")?EVENT_DROP_MULT:1;
+  const total=Math.max(1,Math.floor(mats*defFacMult*Math.pow(1.2,pcN)*evDrop));
   const prefer=b.owner?FAC_MAT[b.owner]:null;
   const keys=Object.keys(MATERIALS);
   for(let i=0;i<total;i++){
@@ -1035,13 +1085,14 @@ function runBattle(bid,b){
     else k=keys[Math.floor(Math.random()*keys.length)];
     drop[k]=(drop[k]||0)+1;
   }
-  log.push({c:"sys",t:"🎒 素材: "+Object.entries(drop).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" ")+(pcN?`（💻パソコン×${pcN}でアップ！）`:"")});
-  // 装備のレアドロップ
+  log.push({c:"sys",t:"🎒 素材: "+Object.entries(drop).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" ")+(pcN?`（💻パソコン×${pcN}でアップ！）`:"")+(evDrop>1?`（🎉イベントで${EVENT_DROP_MULT}倍！）`:"")});
+  // 装備のレアドロップ（🧦落とし物タイム中は確率アップ）
   let eqDrop=null;
-  if(Math.random()<EQUIP_DROP_RATE){
+  const evEq=eventActive("equip2")?EVENT_EQUIP_MULT:1;
+  if(Math.random()<EQUIP_DROP_RATE*evEq){
     const ks=Object.keys(EQUIPS);
     eqDrop=ks[Math.floor(Math.random()*ks.length)];
-    log.push({c:"sys",t:`🎁 レアドロップ！ ${EQUIPS[eqDrop].name}（${EQUIPS[eqDrop].desc}）を手に入れた！`});
+    log.push({c:"sys",t:`🎁 レアドロップ！ ${EQUIPS[eqDrop].name}（${EQUIPS[eqDrop].desc}）を手に入れた！${evEq>1?"（🧦落とし物タイム！）":""}`});
   }
   if(captured) log.push({c:"sys",t:`🚩 ${b.name} を ${FACTIONS[me.faction].short}科が制圧！（HP全回復）`});
 
@@ -1100,8 +1151,14 @@ function showLog(log){
 function rollUnit(forceRank){
   let rank=forceRank;
   if(!rank){
+    // 🎰モーニングガシャ中はAランク率アップ（増えた分はF率から引く）
+    let rates=GACHA_RATE;
+    if(eventActive("gachaA")){
+      const extra=GACHA_RATE.find(([k])=>k==="A")[1]*(EVENT_GACHA_A_MULT-1);
+      rates=GACHA_RATE.map(([k,p])=>[k, k==="A"?p+extra : k==="F"?p-extra : p]);
+    }
     let r=Math.random()*100;
-    for(const [k,p] of GACHA_RATE){ if(r<p){rank=k;break;} r-=p; }
+    for(const [k,p] of rates){ if(r<p){rank=k;break;} r-=p; }
     rank=rank||"F";
   }
   const pool=UNIT_POOL[rank];
