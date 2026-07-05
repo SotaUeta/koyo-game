@@ -153,6 +153,12 @@ button{font-family:inherit;}
 .reveal{animation:pop .5s ease-out;}
 @keyframes pop{ 0%{transform:scale(.2) rotate(-20deg); opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1);} }
 
+/* ===== daily missions ===== */
+#missionBox{max-width:420px; margin:22px auto 0; text-align:left;}
+.mbar{height:8px; background:#0008; border-radius:4px; overflow:hidden; border:1px solid var(--line); margin:4px 0;}
+.mbar i{display:block; height:100%; background:linear-gradient(90deg,#f2a005,#ffd34d); transition:width .3s;}
+.mcard.mdone{opacity:.55;}
+
 /* ===== lists ===== */
 #tab-units,#tab-rank{padding:12px;}
 .fbar{height:14px; border-radius:7px; background:#0008; overflow:hidden; margin-top:3px; border:1px solid var(--line);}
@@ -288,11 +294,12 @@ const BUILDING_DEFS = [
 
   <div class="tab" id="tab-gacha">
     <h2>人材ガシャ</h2>
-    <p class="note">100円玉は5分ごとに1枚たまる（最大5枚）</p>
+    <p class="note">100円玉は5分ごとに1枚たまる（自然回復は最大5枚・ミッション報酬なら5枚を超えて持てる）</p>
     <div id="gachaMachine">🎰</div>
     <div id="coinTimer" class="note"></div>
     <button id="gachaBtn">💰1枚で回す</button>
     <div id="gachaResult"></div>
+    <div id="missionBox"></div>
   </div>
 
   <div class="tab" id="tab-units">
@@ -420,6 +427,15 @@ Object.values(UNIT_POOL).flat().forEach(b=>UNIT_DESC[b.name]=b.desc);
 Object.values(DEPT_HEADS).forEach(b=>UNIT_DESC[b.name]=b.desc);
 const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
 const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
+
+// デイリーミッション（毎日0時リセット・報酬はコイン。COIN_MAXを超えて受け取れる）
+const MISSIONS = [
+  {id:"attack",  name:"⚔ バトルに3回出撃する",       goal:3, reward:2},
+  {id:"ration",  name:"🎁 配給を2回受け取る",         goal:2, reward:1},
+  {id:"gacha",   name:"🎰 ガシャを1回まわす",         goal:1, reward:1},
+  {id:"upgrade", name:"⬆ 建物を1回強化する",          goal:1, reward:1},
+  {id:"defend",  name:"🛡 引きこもりを1体配置する",   goal:1, reward:1},
+];
 
 /* =============== 初期化 =============== */
 const configured = firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY";
@@ -624,7 +640,8 @@ function multiplier(fac){
 /* =============== ヘッダー・コイン =============== */
 function coinState(p){
   let coins=p.coins??0, anchor=p.coinAnchor??Date.now();
-  if(coins>=COIN_MAX) return {coins:COIN_MAX, anchor:Date.now(), next:0};
+  // 自然回復の上限はCOIN_MAXだが、ミッション報酬で上限を超えて持てる（超過分は減らさない）
+  if(coins>=COIN_MAX) return {coins, anchor:Date.now(), next:0};
   const gained=Math.floor((Date.now()-anchor)/COIN_MS);
   const nc=Math.min(COIN_MAX, coins+gained);
   const na=nc>=COIN_MAX?Date.now():anchor+gained*COIN_MS;
@@ -767,7 +784,7 @@ function placeDef(uid){
   const up={};
   up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:eqAtk(u), def:eqDef(u), elm:u.elm||null, pname:me.name};
   up[`players/${PID}/units/${uid}/defendingAt`]=curB;
-  db.ref().update(up).then(()=>toast("引きこもり配置！"));
+  db.ref().update(up).then(()=>{ toast("引きこもり配置！"); missionProg("defend"); });
 }
 function recallDef(){
   const b=buildings[curB], d=(b.defenders||{})[PID]; if(!d) return;
@@ -811,7 +828,7 @@ function doUpgrade(kind){
   up[`buildings/${curB}/${lvKey}`]=lv+1;
   up[`players/${PID}/koyo`]=INC(lv*2);
   up[`rankings/${PID}/koyo`]=INC(lv*2);
-  db.ref().update(up).then(()=>toast(`強化成功！🍁こうよう+${lv*2}`));
+  db.ref().update(up).then(()=>{ toast(`強化成功！🍁こうよう+${lv*2}`); missionProg("upgrade"); });
 }
 
 /* ---- 配給 ---- */
@@ -859,6 +876,7 @@ function claimRationAt(bid){
   up[`players/${PID}/rations/${bid}`]=Date.now();
   db.ref().update(up).then(()=>{
     toast(`${ITEMS[it].name}×${amt} を受け取った！`);
+    missionProg("ration");
     if(curB===bid && curSub===viewRation) setTimeout(viewRation,300);
   });
 }
@@ -1033,6 +1051,7 @@ function runBattle(bid,b){
     up[`rankings/${pid}/koyo`]=INC(v);
   });
   db.ref().update(up);
+  missionProg("attack");
 
   selUnits.clear();
   showLog(log);
@@ -1075,11 +1094,12 @@ function renderGacha(){
   const st=coinState(me);
   $("gachaBtn").disabled = st.coins<1;
   renderGachaTimer();
+  renderMissions();
 }
 function renderGachaTimer(){
   if(!me) return;
   const st=coinState(me);
-  if(st.coins>=COIN_MAX) $("coinTimer").textContent="💰 満タン（5枚）";
+  if(st.coins>=COIN_MAX) $("coinTimer").textContent=`💰${st.coins}枚（満タン・自然回復ストップ中）`;
   else{
     const s=Math.ceil(st.next/1000);
     $("coinTimer").textContent=`💰${st.coins}枚 ／ 次の100円玉まで ${Math.floor(s/60)}分${s%60}秒`;
@@ -1096,6 +1116,7 @@ $("gachaBtn").onclick=()=>{
   $("gachaMachine").classList.add("spin");
   $("gachaResult").innerHTML="";
   db.ref().update(up).then(()=>{
+    missionProg("gacha");
     setTimeout(()=>{
       $("gachaMachine").classList.remove("spin");
       $("gachaResult").innerHTML=`<div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><span class="badge">${elmIco(u.elm)}</span><b>${esc(u.name)}</b></div>
@@ -1104,6 +1125,59 @@ $("gachaBtn").onclick=()=>{
     },900);
   });
 };
+
+/* =============== デイリーミッション =============== */
+// その日の日付キー（端末のローカル時刻基準・毎日0時にリセット）
+function missionDay(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+// 今日のミッションデータ（日付が変わっていたらまっさらな状態を返す）
+function myMissions(){
+  const m=me?.missions;
+  return (m && m.date===missionDay()) ? m : {date:missionDay(), prog:{}, claimed:{}};
+}
+// 進捗を進める（達成済みならなにもしない）
+function missionProg(id, n){
+  if(!me) return;
+  const def=MISSIONS.find(x=>x.id===id); if(!def) return;
+  const m=myMissions();
+  const cur=(m.prog||{})[id]||0;
+  if(cur>=def.goal) return;
+  const nv=Math.min(def.goal, cur+(n||1));
+  // 今日のデータが既にあれば該当ミッションだけ更新（他ミッションの進捗を消さない）。日付が変わっていたら丸ごと作り直し
+  const w = (me.missions?.date===m.date)
+    ? db.ref(`players/${PID}/missions/prog/${id}`).set(nv)
+    : db.ref(`players/${PID}/missions`).set({date:m.date, prog:{[id]:nv}, claimed:{}});
+  w.then(()=>{ if(nv>=def.goal) toast(`✅ ミッション達成！「${def.name}」→ ガシャタブで💰${def.reward}を受け取ろう`,3000); });
+}
+function claimMission(id){
+  if(!me) return;
+  const def=MISSIONS.find(x=>x.id===id); if(!def) return;
+  const m=myMissions();
+  if(((m.prog||{})[id]||0)<def.goal || (m.claimed||{})[id]) return;
+  const st=coinState(me);
+  const up={};
+  up[`players/${PID}/coins`]=st.coins+def.reward;
+  up[`players/${PID}/coinAnchor`]=st.anchor;
+  up[`players/${PID}/missions/claimed/${id}`]=true; // 達成済み＝今日のmissionsノードは必ず存在する
+  db.ref().update(up).then(()=>toast(`💰コイン+${def.reward}！`));
+}
+function renderMissions(){
+  const box=$("missionBox"); if(!box||!me) return;
+  const m=myMissions();
+  let html=`<h3 style="font-size:13px; margin:0 0 4px;">📋 デイリーミッション <span class="note">毎日0時リセット・報酬はコイン</span></h3>`;
+  MISSIONS.forEach(def=>{
+    const cur=Math.min(def.goal,(m.prog||{})[def.id]||0);
+    const done=cur>=def.goal, claimed=(m.claimed||{})[def.id];
+    html+=`<div class="card mcard ${claimed?"mdone":""}">
+      <div class="top"><b>${def.name}</b><span class="badge" style="margin-left:auto; color:var(--gold)">💰${def.reward}</span></div>
+      <div class="mbar"><i style="width:${cur/def.goal*100}%"></i></div>
+      <div class="stat">${cur} / ${def.goal}${claimed?"　✔ 受け取り済み":done?`　<button class="mini sel" onclick="claimMission('${def.id}')">💰 受け取る</button>`:""}</div>
+    </div>`;
+  });
+  box.innerHTML=html;
+}
 
 /* =============== 編成プリセット =============== */
 const PRESET_MAX=3;
