@@ -167,7 +167,8 @@ button{font-family:inherit;}
 @keyframes pop{ 0%{transform:scale(.2) rotate(-20deg); opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1);} }
 
 /* ===== daily missions ===== */
-#missionBox{text-align:left;}
+#tab-missions{padding:12px;}
+#missionBox{max-width:420px; margin:0 auto; text-align:left;}
 .mbar{height:8px; background:#0008; border-radius:4px; overflow:hidden; border:1px solid var(--line); margin:4px 0;}
 .mbar i{display:block; height:100%; background:linear-gradient(90deg,#f2a005,#ffd34d); transition:width .3s;}
 .mcard.mdone{opacity:.55;}
@@ -229,7 +230,6 @@ details.fold{
   padding:8px 10px; margin:8px 0; text-align:left;
 }
 details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;}
-#missionFold{max-width:420px; margin:0 auto 10px;}
 
 /* ===== 人材タブの固定フィルタ ===== */
 /* stickyが親の高さで途切れないよう、このタブだけ高さを内容に合わせる */
@@ -339,17 +339,18 @@ const BUILDING_DEFS = [
 
   <div class="tab" id="tab-gacha">
     <h2>人材ガシャ</h2>
-    <details class="fold" id="missionFold">
-      <summary id="missionSum">📋 デイリーミッション</summary>
-      <p class="note" style="margin:6px 0 2px;">毎日0時リセット・報酬はコイン</p>
-      <div id="missionBox"></div>
-    </details>
     <p class="note">100円玉は5分ごとに1枚たまる（自然回復は最大5枚・ミッション報酬なら5枚を超えて持てる）</p>
     <div id="gachaMachine">🎰</div>
     <div id="coinTimer" class="note"></div>
     <button id="gachaBtn">💰1枚で回す</button>
     <p class="note" id="rateLine"></p>
     <div id="gachaResult"></div>
+  </div>
+
+  <div class="tab" id="tab-missions">
+    <h2>📋 デイリーミッション</h2>
+    <p class="note">毎日0時リセット・報酬はコイン（ガシャの自然回復上限5枚を超えて持てる）</p>
+    <div id="missionBox"></div>
   </div>
 
   <div class="tab" id="tab-units">
@@ -379,7 +380,8 @@ const BUILDING_DEFS = [
 
 <div id="bar">
   <button data-tab="map" class="active"><span class="ico">🗺</span>マップ<span class="tbadge" id="badgeMap"></span></button>
-  <button data-tab="gacha"><span class="ico">🎰</span>ガシャ<span class="tbadge" id="badgeGacha"></span></button>
+  <button data-tab="gacha"><span class="ico">🎰</span>ガシャ</button>
+  <button data-tab="missions"><span class="ico">📋</span>ミッション<span class="tbadge" id="badgeMissions"></span></button>
   <button data-tab="units"><span class="ico">👥</span>人材</button>
   <button data-tab="rank"><span class="ico">🏆</span>ランキング</button>
 </div>
@@ -824,9 +826,9 @@ function updateBadges(){
   if(!me) return;
   // マップ: 配給を受け取れる建物の数
   setTabBadge("badgeMap", BUILDING_DEFS.filter(d=>rationReady(d.id)).length);
-  // ガシャ: 報酬を受け取れるミッションの数
+  // ミッション: 報酬を受け取れるミッションの数
   const m=myMissions();
-  setTabBadge("badgeGacha", MISSIONS.filter(def=>((m.prog||{})[def.id]||0)>=def.goal && !(m.claimed||{})[def.id]).length);
+  setTabBadge("badgeMissions", MISSIONS.filter(def=>((m.prog||{})[def.id]||0)>=def.goal && !(m.claimed||{})[def.id]).length);
 }
 
 /* =============== 建物画面 =============== */
@@ -1299,7 +1301,7 @@ function missionProg(id, n){
   const w = (me.missions?.date===m.date)
     ? db.ref(`players/${PID}/missions/prog/${id}`).set(nv)
     : db.ref(`players/${PID}/missions`).set({date:m.date, prog:{[id]:nv}, claimed:{}});
-  w.then(()=>{ if(nv>=def.goal) toast(`✅ ミッション達成！「${def.name}」→ ガシャタブで💰${def.reward}を受け取ろう`,3000); }).catch(dbErr);
+  w.then(()=>{ if(nv>=def.goal) toast(`✅ ミッション達成！「${def.name}」→ ミッションタブで💰${def.reward}を受け取ろう`,3000); }).catch(dbErr);
 }
 function claimMission(id){
   if(!me) return;
@@ -1316,12 +1318,6 @@ function claimMission(id){
 function renderMissions(){
   const box=$("missionBox"); if(!box||!me) return;
   const m=myMissions();
-  // 折りたたみの見出しに受け取れる報酬数／達成数を出す（開かなくても状況が分かる）
-  const claimable=MISSIONS.filter(def=>((m.prog||{})[def.id]||0)>=def.goal && !(m.claimed||{})[def.id]).length;
-  const done=MISSIONS.filter(def=>((m.prog||{})[def.id]||0)>=def.goal).length;
-  $("missionSum").textContent=claimable
-    ? `📋 デイリーミッション（💰受け取れる報酬 ${claimable}件！）`
-    : `📋 デイリーミッション（達成 ${done}/${MISSIONS.length}）`;
   let html="";
   MISSIONS.forEach(def=>{
     const cur=Math.min(def.goal,(m.prog||{})[def.id]||0);
