@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>こうよう祭 学科対抗陣取り</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
@@ -54,7 +54,13 @@ button{font-family:inherit;}
 }
 #bar button{
   flex:1; background:none; border:none; color:var(--dim); padding:10px 0 8px;
-  font-size:11px; cursor:pointer;
+  font-size:12px; cursor:pointer; position:relative;
+}
+.tbadge{
+  position:absolute; top:3px; right:calc(50% - 26px);
+  background:var(--danger); color:#fff; border-radius:9px;
+  min-width:18px; height:18px; line-height:18px; font-size:11px; padding:0 4px;
+  display:none;
 }
 #bar button .ico{display:block; font-size:20px;}
 #bar button.active{color:var(--text); background:var(--panel2);}
@@ -73,10 +79,16 @@ button{font-family:inherit;}
 }
 .bicon .nm{
   position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  font-size:10px; white-space:nowrap; background:#000a; padding:1px 5px; border-radius:4px;
+  font-size:11px; white-space:nowrap; background:#000a; padding:1px 5px; border-radius:4px;
   pointer-events:none;
 }
-.bicon.far{opacity:.45; filter:grayscale(.7);}
+.bicon .mhp{
+  position:absolute; top:calc(100% + 20px); left:50%; transform:translateX(-50%);
+  width:40px; height:5px; background:#0009; border-radius:3px; overflow:hidden;
+  border:1px solid #0006; pointer-events:none;
+}
+.bicon .mhp i{display:block; height:100%; background:#2fa043;}
+.bicon.far{opacity:.6; filter:grayscale(.5);}
 .bicon .rpop{
   position:absolute; bottom:calc(100% + 8px); left:50%;
   background:var(--gold); color:#221a00; font-size:10px; font-weight:bold;
@@ -114,8 +126,8 @@ button{font-family:inherit;}
 }
 @keyframes up{from{transform:translateY(40px); opacity:0;} to{transform:none; opacity:1;}}
 .sheet h2{margin:0 0 4px; font-size:16px; display:flex; align-items:center; gap:8px;}
-.sheet .sub{color:var(--dim); font-size:11px; margin-bottom:10px;}
-.xbtn{margin-left:auto; background:none; border:1px solid var(--line); color:var(--dim); border-radius:6px; padding:2px 10px; cursor:pointer;}
+.sheet .sub{color:var(--dim); font-size:12px; margin-bottom:10px;}
+.xbtn{margin-left:auto; background:none; border:1px solid var(--line); color:var(--dim); border-radius:6px; padding:6px 12px; cursor:pointer;}
 .hpbar{height:10px; background:#0008; border-radius:5px; overflow:hidden; border:1px solid var(--line);}
 .hpbar i{display:block; height:100%; background:linear-gradient(90deg,#2fa043,#7ad14f); transition:width .3s;}
 .hpbar.low i{background:linear-gradient(90deg,#e8394a,#ff9c3f);}
@@ -129,18 +141,18 @@ button{font-family:inherit;}
 .bigbtn .ico{display:block; font-size:22px; margin-bottom:2px;}
 .card{
   border:2px solid var(--line); border-radius:10px; background:var(--panel2);
-  padding:8px 10px; margin:6px 0; font-size:12px;
+  padding:8px 10px; margin:6px 0; font-size:13px;
 }
 .card .top{display:flex; align-items:center; gap:6px; margin-bottom:4px;}
 .rank{border-radius:4px; padding:0 6px; font-weight:bold; font-size:11px; color:#111;}
 .rank.F{background:#8d93a8;} .rank.C{background:#7ad14f;} .rank.B{background:#57b6ff;} .rank.A{background:var(--gold); box-shadow:0 0 8px var(--gold);}
 .stat{color:var(--dim);}
 .badge.terb{color:var(--gold); border-color:var(--gold);}
-.mini{font-size:11px; border-radius:6px; border:1px solid var(--line); background:#0006; color:var(--text); padding:4px 8px; cursor:pointer;}
+.mini{font-size:13px; border-radius:6px; border:1px solid var(--line); background:#0006; color:var(--text); padding:8px 12px; cursor:pointer;}
 .mini:disabled{opacity:.35;}
 .mini.sel{background:var(--gold); color:#111; border-color:var(--gold);}
-.matline{display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; margin:6px 0;}
-.note{font-size:11px; color:var(--dim);}
+.matline{display:flex; flex-wrap:wrap; gap:6px 12px; font-size:13px; margin:6px 0; align-items:center;}
+.note{font-size:12px; color:var(--dim);}
 .center{text-align:center;}
 
 /* ===== gacha ===== */
@@ -164,7 +176,7 @@ button{font-family:inherit;}
 @keyframes pop{ 0%{transform:scale(.2) rotate(-20deg); opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1);} }
 
 /* ===== daily missions ===== */
-#missionBox{max-width:420px; margin:22px auto 0; text-align:left;}
+#missionBox{text-align:left;}
 .mbar{height:8px; background:#0008; border-radius:4px; overflow:hidden; border:1px solid var(--line); margin:4px 0;}
 .mbar i{display:block; height:100%; background:linear-gradient(90deg,#f2a005,#ffd34d); transition:width .3s;}
 .mcard.mdone{opacity:.55;}
@@ -173,11 +185,11 @@ button{font-family:inherit;}
 #tab-units,#tab-rank{padding:12px;}
 .fbar{height:14px; border-radius:7px; background:#0008; overflow:hidden; margin-top:3px; border:1px solid var(--line);}
 .fbar i{display:block; height:100%;}
-.plist{font-size:12px;}
+.plist{font-size:13px;}
 .plist .me{color:var(--gold);}
 
 /* ===== battle log ===== */
-#blog{font-size:12px; line-height:1.7; max-height:45vh; overflow:auto; background:#0007; border-radius:8px; padding:10px; border:1px solid var(--line);}
+#blog{font-size:13px; line-height:1.7; max-height:45vh; overflow:auto; background:#0007; border-radius:8px; padding:10px; border:1px solid var(--line);}
 #blog .atk{color:#ffb1b1;} #blog .def{color:#a9c7ff;} #blog .sys{color:var(--gold);}
 
 /* ===== register / login ===== */
@@ -210,11 +222,40 @@ button{font-family:inherit;}
 #regGo{width:100%; margin-top:16px; font-size:16px; padding:14px; border-radius:12px; border:none; background:var(--gold); color:#221a00; cursor:pointer;}
 #regGo:disabled{opacity:.4;}
 #setupWarn{background:#5a1020; border:2px solid var(--danger); border-radius:10px; padding:12px; font-size:12px; line-height:1.6; display:none; margin-bottom:14px;}
-.toast{
+#toasts{
   position:fixed; left:50%; bottom:80px; transform:translateX(-50%);
-  background:#000d; border:1px solid var(--line); border-radius:10px; padding:8px 16px;
-  font-size:12px; z-index:99; animation:up .2s;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  z-index:99; max-width:92vw; pointer-events:none;
 }
+.toast{
+  background:#000d; border:1px solid var(--line); border-radius:10px; padding:8px 16px;
+  font-size:13px; animation:up .2s;
+}
+
+/* ===== 折りたたみ（所持品・ミッション） ===== */
+details.fold{
+  border:2px solid var(--line); border-radius:10px; background:var(--panel2);
+  padding:8px 10px; margin:8px 0; text-align:left;
+}
+details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;}
+#missionFold{max-width:420px; margin:0 auto 10px;}
+
+/* ===== 人材タブの固定フィルタ ===== */
+/* stickyが親の高さで途切れないよう、このタブだけ高さを内容に合わせる */
+#tab-units{height:auto; min-height:100%;}
+#unitFilters{
+  position:sticky; top:0; z-index:6; background:var(--bg);
+  padding:4px 0; border-bottom:1px solid var(--line);
+}
+
+/* ===== マップ凡例 ===== */
+#mapLegend{
+  position:sticky; bottom:0; left:0; z-index:5; width:100%;
+  display:flex; flex-wrap:wrap; gap:4px 10px; justify-content:center;
+  padding:5px 6px calc(5px + env(safe-area-inset-bottom)); background:#0d1122d9; font-size:11px;
+}
+#mapLegend .lchip{display:inline-flex; align-items:center; gap:4px;}
+#mapLegend .lchip i{width:10px; height:10px; border-radius:50%; display:inline-block;}
 @media (prefers-reduced-motion:reduce){ *{animation:none !important; transition:none !important;} }
 </style>
 </head>
@@ -303,28 +344,39 @@ const BUILDING_DEFS = [
         <img src="campus.png" alt="豊田高専キャンパスマップ">
         <div id="icons"></div>
       </div>
+      <div id="mapLegend"></div>
     </div>
   </div>
 
   <div class="tab" id="tab-gacha">
     <h2>人材ガシャ</h2>
+    <details class="fold" id="missionFold">
+      <summary id="missionSum">📋 デイリーミッション</summary>
+      <p class="note" style="margin:6px 0 2px;">毎日0時リセット・報酬はコイン</p>
+      <div id="missionBox"></div>
+    </details>
     <p class="note">100円玉は5分ごとに1枚たまる（自然回復は最大5枚・ミッション報酬なら5枚を超えて持てる）</p>
     <p class="note" id="eventSched"></p>
     <div id="gachaMachine">🎰</div>
     <div id="coinTimer" class="note"></div>
     <button id="gachaBtn">💰1枚で回す</button>
+    <p class="note" id="rateLine"></p>
     <div id="gachaResult"></div>
-    <div id="missionBox"></div>
   </div>
 
   <div class="tab" id="tab-units">
     <h2>人材いちらん</h2>
     <div id="presetBox"></div>
-    <div class="matline" id="itemLine"></div>
-    <div class="matline" id="equipLine"></div>
-    <div class="matline" id="matLine"></div>
-    <div class="matline" id="sortLine"></div>
-    <div class="matline" id="elmLine"></div>
+    <details class="fold">
+      <summary>🎒 所持品（回復・装備・素材）<span class="note">タップで説明</span></summary>
+      <div class="matline" id="itemLine"></div>
+      <div class="matline" id="equipLine"></div>
+      <div class="matline" id="matLine"></div>
+    </details>
+    <div id="unitFilters">
+      <div class="matline" id="sortLine"></div>
+      <div class="matline" id="elmLine"></div>
+    </div>
     <div id="unitList"></div>
   </div>
 
@@ -338,8 +390,8 @@ const BUILDING_DEFS = [
 </div>
 
 <div id="bar">
-  <button data-tab="map" class="active"><span class="ico">🗺</span>マップ</button>
-  <button data-tab="gacha"><span class="ico">🎰</span>ガシャ</button>
+  <button data-tab="map" class="active"><span class="ico">🗺</span>マップ<span class="tbadge" id="badgeMap"></span></button>
+  <button data-tab="gacha"><span class="ico">🎰</span>ガシャ<span class="tbadge" id="badgeGacha"></span></button>
   <button data-tab="units"><span class="ico">👥</span>人材</button>
   <button data-tab="rank"><span class="ico">🏆</span>ランキング</button>
 </div>
@@ -348,8 +400,17 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovB"><div class="sheet" id="bSheet"></div></div>
 <!-- バトルログ -->
 <div class="overlay" id="ovLog"><div class="sheet">
-  <h2>⚔ バトル <button class="xbtn" onclick="closeOv('ovLog')">閉じる</button></h2>
+  <h2>⚔ バトル <button class="mini" id="blogSkip" onclick="skipLog()">⏩ 全部表示</button><button class="xbtn" onclick="closeOv('ovLog')">閉じる</button></h2>
   <div id="blog"></div>
+</div></div>
+<!-- ログアウト確認 -->
+<div class="overlay" id="ovConfirm"><div class="sheet">
+  <h2>⏻ ログアウトする？ <button class="xbtn" onclick="closeOv('ovConfirm')">閉じる</button></h2>
+  <p class="note">データはアカウントに保存されているから、またログインすれば続きから遊べるよ。</p>
+  <div class="row">
+    <button class="bigbtn" onclick="closeOv('ovConfirm')">やめる</button>
+    <button class="bigbtn" id="logoutGo" style="border-color:var(--danger); color:var(--danger)">ログアウトする</button>
+  </div>
 </div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -499,7 +560,17 @@ const OLD_PID = localStorage.getItem("koyo_pid");
 let me=null, buildings={}, rankData={}, geo=null, curB=null, curSub=null, selUnits=new Set(), rankSynced=false;
 const $ = id=>document.getElementById(id);
 const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function toast(msg,ms){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),ms||2200); }
+// トーストは専用コンテナに縦積み（連発しても重ならない・最大3件）
+function toast(msg,ms){
+  let box=$("toasts");
+  if(!box){ box=document.createElement("div"); box.id="toasts"; document.body.appendChild(box); }
+  const t=document.createElement("div"); t.className="toast"; t.textContent=msg;
+  box.appendChild(t);
+  while(box.children.length>3) box.firstChild.remove();
+  setTimeout(()=>t.remove(),ms||2200);
+}
+// DB書き込み失敗時の共通通知（電波の悪い屋外での無言失敗を防ぐ）
+const dbErr = ()=>toast("⚠ 通信エラー。電波のいい場所でもう一度試してね",3000);
 // 図鑑説明（一覧行の名前タップで表示）
 function showDesc(type,k){
   let name,txt;
@@ -561,10 +632,9 @@ if(configured){
       .then(()=>{ setLoginErr(); toast("パスワード再設定メールを送ったよ"); })
       .catch(e=>setLoginErr(authErrMsg(e)));
   };
-  $("logoutBtn").onclick=()=>{
-    if(confirm("ログアウトする？（データはアカウントに保存されているよ）"))
-      auth.signOut().then(()=>location.reload());
-  };
+  // confirm()のネイティブダイアログではなく、UIに合わせたモーダルで確認する
+  $("logoutBtn").onclick=()=>$("ovConfirm").classList.add("show");
+  $("logoutGo").onclick=()=>auth.signOut().then(()=>location.reload());
 }
 
 // 旧バージョン（端末ごとのID）のデータをアカウントへ引き継ぐ
@@ -629,7 +699,7 @@ function showReg(){
     const up={};
     up["players/"+PID]=p;
     up["rankings/"+PID]={name:p.name, faction:p.faction, koyo:0};
-    db.ref().update(up).then(()=>{ $("reg").classList.remove("show"); toast("参戦！ 学科長とエナドリを配布したよ"); });
+    db.ref().update(up).then(()=>{ $("reg").classList.remove("show"); toast("参戦！ 学科長とエナドリを配布したよ"); }).catch(dbErr);
   };
 }
 
@@ -739,38 +809,69 @@ function inRange(def){
 }
 
 /* =============== マップ =============== */
+// アイコンは初回だけ生成し、以降は差分更新（丸ごと作り直すとタップ中の要素が消えて空振りするため）
+const iconEls={};
 function renderMap(){
   const wrap=$("icons"); if(!wrap) return;
   $("betaBanner").style.display=BETA_MODE?"block":"none";
-  wrap.innerHTML="";
   BUILDING_DEFS.forEach(def=>{
-    const b=buildings[def.id]; if(!b) return;
-    const el=document.createElement("div");
-    el.className="bicon";
-    el.style.left=def.x+"%"; el.style.top=def.y+"%";
+    const b=buildings[def.id];
+    let el=iconEls[def.id];
+    if(!b){ if(el){ el.remove(); delete iconEls[def.id]; } return; }
+    if(!el){
+      el=document.createElement("div");
+      el.className="bicon";
+      el.style.left=def.x+"%"; el.style.top=def.y+"%";
+      el.innerHTML=`${def.ico}<span class="nm"></span><span class="mhp"><i></i></span>`;
+      el.onclick=()=>{
+        if(!inRange(def)){ toast("近くまで移動するとタップできるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
+        openBuilding(def.id);
+      };
+      wrap.appendChild(el);
+      iconEls[def.id]=el;
+    }
     const ownerC = b.owner?FACTIONS[b.owner].color:"#888";
     el.style.borderColor=ownerC;
     el.style.boxShadow=`0 0 10px ${ownerC}, 0 2px 8px #0009`;
-    el.innerHTML=`${def.ico}<span class="nm">${esc(def.name)}${b.owner?("("+b.owner+")"):""}${def.terrain?ELEMENTS[def.terrain].ico:""}</span>`;
-    if(Date.now()-(b.lastBattleAt||0)<60000) el.classList.add("battling");
-    if(!inRange(def)) el.classList.add("far");
-    el.onclick=()=>{
-      if(!inRange(def)){ toast("近くまで移動するとタップできるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
-      openBuilding(def.id);
-    };
+    el.querySelector(".nm").textContent=def.name+(b.owner?("("+b.owner+")"):"")+(def.terrain?ELEMENTS[def.terrain].ico:"");
+    el.classList.toggle("battling", Date.now()-(b.lastBattleAt||0)<60000);
+    el.classList.toggle("far", !inRange(def));
+    // 建物HPバー（攻め時が一目で分かる）
+    const hpr=Math.max(0,Math.min(1,b.hp/b.maxHp));
+    const bar=el.querySelector(".mhp i");
+    bar.style.width=(hpr*100)+"%";
+    bar.style.background=hpr<0.3?"#e8394a":hpr<0.6?"#f2a005":"#2fa043";
     // 配給が受け取り可能ならポップアップを出す（タップでその場で受け取り）
+    let pop=el.querySelector(".rpop");
     if(rationReady(def.id)){
-      const pop=document.createElement("div");
-      pop.className="rpop"; pop.textContent="🎁配給";
-      pop.onclick=e=>{
-        e.stopPropagation();
-        if(!inRange(def)){ toast("近くまで移動すると受け取れるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
-        claimRationAt(def.id);
-      };
-      el.appendChild(pop);
-    }
-    wrap.appendChild(el);
+      if(!pop){
+        pop=document.createElement("div");
+        pop.className="rpop"; pop.textContent="🎁配給";
+        pop.onclick=e=>{
+          e.stopPropagation();
+          if(!inRange(def)){ toast("近くまで移動すると受け取れるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
+          claimRationAt(def.id);
+        };
+        el.appendChild(pop);
+      }
+    }else if(pop) pop.remove();
   });
+  updateBadges();
+}
+
+/* =============== タブ通知バッジ =============== */
+function setTabBadge(id,n){
+  const el=$(id); if(!el) return;
+  el.style.display=n>0?"block":"none";
+  el.textContent=n;
+}
+function updateBadges(){
+  if(!me) return;
+  // マップ: 配給を受け取れる建物の数
+  setTabBadge("badgeMap", BUILDING_DEFS.filter(d=>rationReady(d.id)).length);
+  // ガシャ: 報酬を受け取れるミッションの数
+  const m=myMissions();
+  setTabBadge("badgeGacha", MISSIONS.filter(def=>((m.prog||{})[def.id]||0)>=def.goal && !(m.claimed||{})[def.id]).length);
 }
 
 /* =============== 建物画面 =============== */
@@ -813,8 +914,12 @@ function renderBuilding(bid){
       <button class="bigbtn" onclick="viewRation()"><span class="ico">🎁</span>配給</button>
     </div><div id="bSub"></div>`;
   }
-  $("bSheet").innerHTML=html;
+  // 定期再描画でスクロール位置が飛ばないよう、描画前後で位置を保持する
+  const sheet=$("bSheet");
+  const st=sheet.scrollTop;
+  sheet.innerHTML=html;
   if(curSub && $("bSub")) curSub();
+  sheet.scrollTop=st;
 }
 
 /* ---- 防衛 ---- */
@@ -848,7 +953,7 @@ function placeDef(uid){
   const up={};
   up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:eqAtk(u), def:eqDef(u), elm:u.elm||null, pname:me.name};
   up[`players/${PID}/units/${uid}/defendingAt`]=curB;
-  db.ref().update(up).then(()=>{ toast("引きこもり配置！"); missionProg("defend"); });
+  db.ref().update(up).then(()=>{ toast("引きこもり配置！"); missionProg("defend"); }).catch(dbErr);
 }
 function recallDef(){
   const b=buildings[curB], d=(b.defenders||{})[PID]; if(!d) return;
@@ -856,7 +961,7 @@ function recallDef(){
   up[`buildings/${curB}/defenders/${PID}`]=null;
   up[`players/${PID}/units/${d.unitId}/defendingAt`]=null;
   up[`players/${PID}/units/${d.unitId}/hp`]=d.hp;
-  db.ref().update(up).then(()=>toast("呼び戻した"));
+  db.ref().update(up).then(()=>toast("呼び戻した")).catch(dbErr);
 }
 
 /* ---- 強化 ---- */
@@ -892,7 +997,7 @@ function doUpgrade(kind){
   up[`buildings/${curB}/${lvKey}`]=lv+1;
   up[`players/${PID}/koyo`]=INC(lv*2);
   up[`rankings/${PID}/koyo`]=INC(lv*2);
-  db.ref().update(up).then(()=>{ toast(`強化成功！🍁こうよう+${lv*2}`); missionProg("upgrade"); });
+  db.ref().update(up).then(()=>{ toast(`強化成功！🍁こうよう+${lv*2}`); missionProg("upgrade"); }).catch(dbErr);
 }
 
 /* ---- 配給 ---- */
@@ -944,7 +1049,7 @@ function claimRationAt(bid){
     toast(`${ITEMS[it].name}×${amt} を受け取った！`);
     missionProg("ration");
     if(curB===bid && curSub===viewRation) setTimeout(viewRation,300);
-  });
+  }).catch(dbErr);
 }
 
 /* ---- 攻撃 ---- */
@@ -973,16 +1078,23 @@ function viewAttack(){
   list.forEach(([id,u])=>{
     const tb=ter&&u.elm===ter;
     html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
-      <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
+      <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}',this)">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div></div>`;
   });
-  html+=`<div class="atkfloat"><button class="bigbtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
+  html+=`<div class="atkfloat"><button class="bigbtn" id="atkGoBtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
   $("bSub").innerHTML=html;
 }
-function togSel(id){
+// 選択トグルはボタンだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
+function togSel(id,btn){
   if(selUnits.has(id)) selUnits.delete(id);
   else{ if(selUnits.size>=6){ toast("6体までだよ"); return; } selUnits.add(id); }
-  viewAttack();
+  if(btn){
+    const on=selUnits.has(id);
+    btn.classList.toggle("sel",on);
+    btn.textContent=on?"✔選択中":"選ぶ";
+  }
+  const go=$("atkGoBtn");
+  if(go){ go.disabled=!selUnits.size; go.textContent=`⚔ 攻撃開始（${selUnits.size}体）`; }
 }
 
 /* =============== バトル =============== */
@@ -1127,24 +1239,36 @@ function runBattle(bid,b){
     up[`players/${pid}/koyo`]=INC(v);
     up[`rankings/${pid}/koyo`]=INC(v);
   });
-  db.ref().update(up);
+  db.ref().update(up).catch(dbErr);
   missionProg("attack");
 
   selUnits.clear();
   showLog(log);
 }
+let logQueue=[], logIdx=0, logTimer=null;
+function addLogLine(l){
+  const el=$("blog");
+  const d=document.createElement("div"); d.className=l.c; d.textContent=l.t;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
 function showLog(log){
-  const el=$("blog"); el.innerHTML="";
+  $("blog").innerHTML="";
   $("ovLog").classList.add("show");
-  let i=0;
+  logQueue=log; logIdx=0;
+  clearTimeout(logTimer);
+  $("blogSkip").style.display="";
   const tick=()=>{
-    if(i>=log.length) return;
-    const l=log[i++];
-    const d=document.createElement("div"); d.className=l.c; d.textContent=l.t;
-    el.appendChild(d); el.scrollTop=el.scrollHeight;
-    setTimeout(tick, 120);
+    if(logIdx>=logQueue.length){ $("blogSkip").style.display="none"; return; }
+    addLogLine(logQueue[logIdx++]);
+    logTimer=setTimeout(tick, 120);
   };
   tick();
+}
+// 1行ずつの演出を飛ばして残りを全部表示
+function skipLog(){
+  clearTimeout(logTimer);
+  while(logIdx<logQueue.length) addLogLine(logQueue[logIdx++]);
+  $("blogSkip").style.display="none";
 }
 
 /* =============== ガシャ =============== */
@@ -1206,7 +1330,7 @@ $("gachaBtn").onclick=()=>{
         <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>
         ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>`;
     },900);
-  });
+  }).catch(()=>{ $("gachaMachine").classList.remove("spin"); dbErr(); });
 };
 
 /* =============== デイリーミッション =============== */
@@ -1232,7 +1356,7 @@ function missionProg(id, n){
   const w = (me.missions?.date===m.date)
     ? db.ref(`players/${PID}/missions/prog/${id}`).set(nv)
     : db.ref(`players/${PID}/missions`).set({date:m.date, prog:{[id]:nv}, claimed:{}});
-  w.then(()=>{ if(nv>=def.goal) toast(`✅ ミッション達成！「${def.name}」→ ガシャタブで💰${def.reward}を受け取ろう`,3000); });
+  w.then(()=>{ if(nv>=def.goal) toast(`✅ ミッション達成！「${def.name}」→ ガシャタブで💰${def.reward}を受け取ろう`,3000); }).catch(dbErr);
 }
 function claimMission(id){
   if(!me) return;
@@ -1244,12 +1368,18 @@ function claimMission(id){
   up[`players/${PID}/coins`]=st.coins+def.reward;
   up[`players/${PID}/coinAnchor`]=st.anchor;
   up[`players/${PID}/missions/claimed/${id}`]=true; // 達成済み＝今日のmissionsノードは必ず存在する
-  db.ref().update(up).then(()=>toast(`💰コイン+${def.reward}！`));
+  db.ref().update(up).then(()=>toast(`💰コイン+${def.reward}！`)).catch(dbErr);
 }
 function renderMissions(){
   const box=$("missionBox"); if(!box||!me) return;
   const m=myMissions();
-  let html=`<h3 style="font-size:13px; margin:0 0 4px;">📋 デイリーミッション <span class="note">毎日0時リセット・報酬はコイン</span></h3>`;
+  // 折りたたみの見出しに受け取れる報酬数／達成数を出す（開かなくても状況が分かる）
+  const claimable=MISSIONS.filter(def=>((m.prog||{})[def.id]||0)>=def.goal && !(m.claimed||{})[def.id]).length;
+  const done=MISSIONS.filter(def=>((m.prog||{})[def.id]||0)>=def.goal).length;
+  $("missionSum").textContent=claimable
+    ? `📋 デイリーミッション（💰受け取れる報酬 ${claimable}件！）`
+    : `📋 デイリーミッション（達成 ${done}/${MISSIONS.length}）`;
+  let html="";
   MISSIONS.forEach(def=>{
     const cur=Math.min(def.goal,(m.prog||{})[def.id]||0);
     const done=cur>=def.goal, claimed=(m.claimed||{})[def.id];
@@ -1260,6 +1390,7 @@ function renderMissions(){
     </div>`;
   });
   box.innerHTML=html;
+  updateBadges();
 }
 
 /* =============== 編成プリセット =============== */
@@ -1271,7 +1402,7 @@ function renderPresets(){
   let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">攻撃時にワンタップで呼び出せるよ</span></h3>`;
   for(let n=0;n<PRESET_MAX;n++){
     if(presetEdit===n){
-      html+=`<div class="card"><div class="top"><b>プリセット${n+1} を編集中</b>（${presetSel.size}/6体）</div>
+      html+=`<div class="card"><div class="top"><b>プリセット${n+1} を編集中</b><span id="preCnt">（${presetSel.size}/6体）</span></div>
         <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね</div>
         <div class="row" style="margin:6px 0 0"><button class="mini sel" onclick="savePreset()">✔ 保存する</button>
         <button class="mini" onclick="cancelPreset()">キャンセル</button></div></div>`;
@@ -1296,17 +1427,24 @@ function savePreset(){
   if(!presetSel.size){ toast("1体は選んでね"); return; }
   const n=presetEdit;
   presetEdit=null;
-  db.ref(`players/${PID}/presets/${n}`).set([...presetSel]).then(()=>toast(`プリセット${n+1}を保存した！`));
+  db.ref(`players/${PID}/presets/${n}`).set([...presetSel]).then(()=>toast(`プリセット${n+1}を保存した！`)).catch(dbErr);
   presetSel.clear();
   renderUnits();
 }
 function delPreset(n){
-  db.ref(`players/${PID}/presets/${n}`).set(null).then(()=>toast(`プリセット${n+1}を削除した`));
+  db.ref(`players/${PID}/presets/${n}`).set(null).then(()=>toast(`プリセット${n+1}を削除した`)).catch(dbErr);
 }
-function togPre(id){
+// 選択トグルはボタンだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
+function togPre(id,btn){
   if(presetSel.has(id)) presetSel.delete(id);
   else{ if(presetSel.size>=6){ toast("6体までだよ"); return; } presetSel.add(id); }
-  renderUnits();
+  if(btn){
+    const on=presetSel.has(id);
+    btn.classList.toggle("sel",on);
+    btn.textContent=on?"✔選択中":"選ぶ";
+  }
+  const c=$("preCnt");
+  if(c) c.textContent=`（${presetSel.size}/6体）`;
 }
 // 攻撃画面でプリセットを呼び出す（HP0・防衛中は自動で外す）
 function applyPreset(n){
@@ -1359,7 +1497,7 @@ function renderUnits(){
       u.equip?`<button class="mini" onclick="setEquip('${id}',null)">✖${EQUIPS[u.equip].name}をはずす</button>`:""}${eqBtns}</div>`:"";
     d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
         ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}
-        ${presetEdit!==null?`<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`:""}</div>
+        ${presetEdit!==null?`<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" onclick="togPre('${id}',this)">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`:""}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}</div>
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
@@ -1379,7 +1517,7 @@ function setEquip(uid,k){
   if(u.defendingAt){ toast("防衛中は装備を変えられないよ"); return; }
   if(k && freeEquips(k)<1) return;
   db.ref(`players/${PID}/units/${uid}/equip`).set(k||null)
-    .then(()=>toast(k?`${u.name} に ${EQUIPS[k].name} を装備！`:"装備をはずした"));
+    .then(()=>toast(k?`${u.name} に ${EQUIPS[k].name} を装備！`:"装備をはずした")).catch(dbErr);
 }
 function useItem(uid,ik){
   const u=me.units[uid];
@@ -1388,7 +1526,7 @@ function useItem(uid,ik){
   const up={};
   up[`players/${PID}/units/${uid}/hp`]=nh;
   up[`players/${PID}/items/${ik}`]=INC(-1);
-  db.ref().update(up).then(()=>toast(`${u.name} が回復！(${u.hp}→${nh})`));
+  db.ref().update(up).then(()=>toast(`${u.name} が回復！(${u.hp}→${nh})`)).catch(dbErr);
 }
 
 /* =============== ランキング =============== */
@@ -1410,15 +1548,27 @@ function renderRank(){
 }
 
 /* =============== タブ =============== */
-document.querySelectorAll("#bar button").forEach(b=>{
-  b.onclick=()=>{
-    document.querySelectorAll("#bar button").forEach(x=>x.classList.remove("active"));
-    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-    b.classList.add("active");
-    $("tab-"+b.dataset.tab).classList.add("active");
-    if(b.dataset.tab==="rank") fetchRank();
-  };
-});
+function switchTab(name){
+  document.querySelectorAll("#bar button").forEach(x=>x.classList.toggle("active",x.dataset.tab===name));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  $("tab-"+name).classList.add("active");
+  if(name==="rank") fetchRank();
+}
+document.querySelectorAll("#bar button").forEach(b=>{ b.onclick=()=>switchTab(b.dataset.tab); });
+// ヘッダーの💰/🍁からも関連タブへ飛べる
+$("coinBadge").style.cursor="pointer";
+$("coinBadge").onclick=()=>switchTab("gacha");
+$("koyoBadge").style.cursor="pointer";
+$("koyoBadge").onclick=()=>switchTab("rank");
+
+/* =============== 静的UIの初期化 =============== */
+// ガシャ排出率（GACHA_RATEから生成・レア順）
+$("rateLine").textContent="排出率: "+[...GACHA_RATE].reverse().map(([k,p])=>`${k}ランク ${p}%`).join("・");
+// マップ凡例（陣営カラー）
+$("mapLegend").innerHTML=Object.entries(FACTIONS).map(([k,f])=>
+  `<span class="lchip"><i style="background:${f.color}"></i>${k}科</span>`).join("")
+  +`<span class="lchip"><i style="background:#888"></i>中立</span>`;
+$("ovConfirm").onclick=e=>{ if(e.target.id==="ovConfirm") closeOv("ovConfirm"); };
 
 /* =============== 起動 =============== */
 if(!configured){
