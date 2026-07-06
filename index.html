@@ -239,6 +239,18 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
   padding:4px 0; border-bottom:1px solid var(--line);
 }
 
+/* ===== 選択中メンバーのチップ（タップで外せる） ===== */
+.selchips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0;}
+.chip{
+  font-size:12px; border-radius:12px; border:1px solid var(--gold);
+  background:#0006; color:var(--gold); padding:5px 10px; cursor:pointer;
+}
+/* プリセット編集バー（スクロールしても画面上部に固定） */
+#preEditBar{
+  display:none; border:2px solid var(--gold); border-radius:10px;
+  background:var(--panel); padding:8px 10px; margin:4px 0;
+}
+
 /* ===== マップ凡例 ===== */
 #mapLegend{
   position:sticky; bottom:0; left:0; z-index:5; width:100%;
@@ -363,6 +375,7 @@ const BUILDING_DEFS = [
       <div class="matline" id="matLine"></div>
     </details>
     <div id="unitFilters">
+      <div id="preEditBar"></div>
       <div class="matline" id="sortLine"></div>
       <div class="matline" id="elmLine"></div>
     </div>
@@ -1033,21 +1046,31 @@ function viewAttack(){
   list.forEach(([id,u])=>{
     const tb=ter&&u.elm===ter;
     html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
-      <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" onclick="togSel('${id}',this)">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
+      <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" data-sel="${id}" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div></div>`;
   });
-  html+=`<div class="atkfloat"><button class="bigbtn" id="atkGoBtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
+  html+=`<div class="atkfloat"><div class="selchips" id="atkChips"></div>
+    <button class="bigbtn" id="atkGoBtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
   $("bSub").innerHTML=html;
+  renderAtkChips();
 }
-// 選択トグルはボタンだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
-function togSel(id,btn){
+// 下部固定エリアに選択中メンバーをチップ表示（スクロールせずに中身の確認・除外ができる）
+function renderAtkChips(){
+  const box=$("atkChips"); if(!box) return;
+  const chips=[...selUnits].map(id=>{
+    const u=me.units?.[id];
+    return u?`<button class="chip" onclick="togSel('${id}')">${esc(u.name)} ✕</button>`:"";
+  }).join("");
+  box.innerHTML=chips||'<span class="note">出撃メンバーを「選ぶ」で追加してね（チップをタップすると外せる）</span>';
+}
+// 選択トグルはボタン・チップだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
+function togSel(id){
   if(selUnits.has(id)) selUnits.delete(id);
   else{ if(selUnits.size>=6){ toast("6体までだよ"); return; } selUnits.add(id); }
-  if(btn){
-    const on=selUnits.has(id);
-    btn.classList.toggle("sel",on);
-    btn.textContent=on?"✔選択中":"選ぶ";
-  }
+  const on=selUnits.has(id);
+  const btn=document.querySelector(`#bSub [data-sel="${id}"]`);
+  if(btn){ btn.classList.toggle("sel",on); btn.textContent=on?"✔選択中":"選ぶ"; }
+  renderAtkChips();
   const go=$("atkGoBtn");
   if(go){ go.disabled=!selUnits.size; go.textContent=`⚔ 攻撃開始（${selUnits.size}体）`; }
 }
@@ -1341,10 +1364,8 @@ function renderPresets(){
   let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">攻撃時にワンタップで呼び出せるよ</span></h3>`;
   for(let n=0;n<PRESET_MAX;n++){
     if(presetEdit===n){
-      html+=`<div class="card"><div class="top"><b>プリセット${n+1} を編集中</b><span id="preCnt">（${presetSel.size}/6体）</span></div>
-        <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね</div>
-        <div class="row" style="margin:6px 0 0"><button class="mini sel" onclick="savePreset()">✔ 保存する</button>
-        <button class="mini" onclick="cancelPreset()">キャンセル</button></div></div>`;
+      html+=`<div class="card"><div class="top"><b>プリセット${n+1} を編集中</b></div>
+        <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。保存・確認はいつでも画面上部の金色バーでできるよ</div></div>`;
       continue;
     }
     const ids=getPreset(n);
@@ -1355,6 +1376,27 @@ function renderPresets(){
       <div class="note">${ids?(names.length?names.join("、"):"（メンバーがいない）"):"未設定"}</div></div>`;
   }
   box.innerHTML=html;
+  renderPreEditBar();
+}
+// 編集中だけ表示される固定バー（保存ボタンと選択メンバーが常に見える）
+function renderPreEditBar(){
+  const bar=$("preEditBar"); if(!bar) return;
+  if(presetEdit===null){ bar.style.display="none"; bar.innerHTML=""; return; }
+  bar.style.display="block";
+  bar.innerHTML=`<div class="top" style="display:flex; align-items:center; gap:6px;">
+      <b>📝 プリセット${presetEdit+1}</b><span id="preCnt">（${presetSel.size}/6体）</span>
+      <button class="mini sel" style="margin-left:auto" onclick="savePreset()">✔ 保存</button>
+      <button class="mini" onclick="cancelPreset()">やめる</button></div>
+    <div class="selchips" id="preChips"></div>`;
+  renderPreChips();
+}
+function renderPreChips(){
+  const box=$("preChips"); if(!box) return;
+  const chips=[...presetSel].map(id=>{
+    const u=me.units?.[id];
+    return u?`<button class="chip" onclick="togPre('${id}')">${esc(u.name)} ✕</button>`:"";
+  }).join("");
+  box.innerHTML=chips||'<span class="note">まだメンバーがいないよ（チップをタップすると外せる）</span>';
 }
 function editPreset(n){
   presetEdit=n;
@@ -1373,15 +1415,14 @@ function savePreset(){
 function delPreset(n){
   db.ref(`players/${PID}/presets/${n}`).set(null).then(()=>toast(`プリセット${n+1}を削除した`)).catch(dbErr);
 }
-// 選択トグルはボタンだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
-function togPre(id,btn){
+// 選択トグルはボタン・チップだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
+function togPre(id){
   if(presetSel.has(id)) presetSel.delete(id);
   else{ if(presetSel.size>=6){ toast("6体までだよ"); return; } presetSel.add(id); }
-  if(btn){
-    const on=presetSel.has(id);
-    btn.classList.toggle("sel",on);
-    btn.textContent=on?"✔選択中":"選ぶ";
-  }
+  const on=presetSel.has(id);
+  const btn=document.querySelector(`#unitList [data-pre="${id}"]`);
+  if(btn){ btn.classList.toggle("sel",on); btn.textContent=on?"✔選択中":"選ぶ"; }
+  renderPreChips();
   const c=$("preCnt");
   if(c) c.textContent=`（${presetSel.size}/6体）`;
 }
@@ -1436,7 +1477,7 @@ function renderUnits(){
       u.equip?`<button class="mini" onclick="setEquip('${id}',null)">✖${EQUIPS[u.equip].name}をはずす</button>`:""}${eqBtns}</div>`:"";
     d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
         ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}
-        ${presetEdit!==null?`<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" onclick="togPre('${id}',this)">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`:""}</div>
+        ${presetEdit!==null?`<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" data-pre="${id}" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`:""}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}</div>
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
