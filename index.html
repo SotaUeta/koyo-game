@@ -259,6 +259,11 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
   display:none; border:2px solid var(--gold); border-radius:10px;
   background:var(--panel); padding:8px 10px; margin:4px 0;
 }
+.preName{
+  width:100%; font-size:16px; padding:8px 10px; margin:6px 0 0;
+  border-radius:8px; border:2px solid var(--line);
+  background:var(--panel2); color:var(--text); font-family:inherit;
+}
 
 /* ===== マップ凡例 ===== */
 #mapLegend{
@@ -1083,7 +1088,7 @@ function viewAttack(){
   if(ter) html+=`<div class="note">${terrainNote(curB)}</div>`;
   const pres=[]; for(let n=0;n<PRESET_MAX;n++) if(getPreset(n)) pres.push(n);
   if(pres.length) html+=`<div class="matline">プリセット: `+pres.map(n=>
-    `<button class="mini" onclick="applyPreset(${n})">⚡ ${n+1}を呼ぶ</button>`).join("")+`</div>`;
+    `<button class="mini" onclick="applyPreset(${n})">⚡ ${esc(presetName(n))}</button>`).join("")+`</div>`;
   else html+=`<div class="note">💡 人材タブで編成プリセットを作ると、ここからワンタップで選べるよ</div>`;
   html+=`<div class="matline">並び: `+Object.entries(UNIT_SORTS).map(([k,n])=>
     `<button class="mini ${atkSort===k?"sel":""}" onclick="setAtkSort('${k}')">${n}</button>`).join("")+`</div>`;
@@ -1414,20 +1419,25 @@ function renderMissions(){
 
 /* =============== 編成プリセット =============== */
 const PRESET_MAX=3;
-let presetEdit=null, presetSel=new Set();
+let presetEdit=null, presetSel=new Set(), presetNameDraft="";
 function getPreset(n){ const ids=(me.presets||[])[n]; return ids?Object.values(ids):null; }
+// 保存済みの名前。未設定なら「プリセットN」を返す
+function presetName(n){
+  const nm=(me.presetNames||{})[n];
+  return (nm&&String(nm).trim()) ? String(nm) : `プリセット${n+1}`;
+}
 function renderPresets(){
   const box=$("presetBox"); if(!box||!me) return;
   let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">攻撃時にワンタップで呼び出せるよ</span></h3>`;
   for(let n=0;n<PRESET_MAX;n++){
     if(presetEdit===n){
-      html+=`<div class="card"><div class="top"><b>プリセット${n+1} を編集中</b></div>
-        <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。保存・確認はいつでも画面上部の金色バーでできるよ</div></div>`;
+      html+=`<div class="card"><div class="top"><b>${esc(presetName(n))} を編集中</b></div>
+        <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。名前・保存・確認はいつでも画面上部の金色バーでできるよ</div></div>`;
       continue;
     }
     const ids=getPreset(n);
     const names=(ids||[]).filter(id=>me.units?.[id]).map(id=>esc(me.units[id].name));
-    html+=`<div class="card"><div class="top"><b>プリセット${n+1}</b>
+    html+=`<div class="card"><div class="top"><b>${esc(presetName(n))}</b>
       <button class="mini" style="margin-left:auto" ${presetEdit!==null?"disabled":""} onclick="editPreset(${n})">${ids?"編集":"作成"}</button>
       ${ids?`<button class="mini" ${presetEdit!==null?"disabled":""} onclick="delPreset(${n})">削除</button>`:""}</div>
       <div class="note">${ids?(names.length?names.join("、"):"（メンバーがいない）"):"未設定"}</div></div>`;
@@ -1435,15 +1445,16 @@ function renderPresets(){
   box.innerHTML=html;
   renderPreEditBar();
 }
-// 編集中だけ表示される固定バー（保存ボタンと選択メンバーが常に見える）
+// 編集中だけ表示される固定バー（名前入力・保存ボタン・選択メンバーが常に見える）
 function renderPreEditBar(){
   const bar=$("preEditBar"); if(!bar) return;
   if(presetEdit===null){ bar.style.display="none"; bar.innerHTML=""; return; }
   bar.style.display="block";
   bar.innerHTML=`<div class="top" style="display:flex; align-items:center; gap:6px;">
-      <b>📝 プリセット${presetEdit+1}</b><span id="preCnt">（${presetSel.size}/6体）</span>
+      <b>📝 編集中</b><span id="preCnt">（${presetSel.size}/6体）</span>
       <button class="mini sel" style="margin-left:auto" onclick="savePreset()">✔ 保存</button>
       <button class="mini" onclick="cancelPreset()">やめる</button></div>
+    <input id="preNameInput" class="preName" maxlength="12" placeholder="プリセット名（例: 火力全開・12文字まで／任意）" value="${esc(presetNameDraft)}" oninput="presetNameDraft=this.value">
     <div class="selchips" id="preChips"></div>`;
   renderPreChips();
 }
@@ -1458,19 +1469,28 @@ function renderPreChips(){
 function editPreset(n){
   presetEdit=n;
   presetSel=new Set((getPreset(n)||[]).filter(id=>me.units?.[id]));
+  presetNameDraft=(me.presetNames||{})[n]||"";
   renderUnits();
 }
-function cancelPreset(){ presetEdit=null; presetSel.clear(); renderUnits(); }
+function cancelPreset(){ presetEdit=null; presetSel.clear(); presetNameDraft=""; renderUnits(); }
 function savePreset(){
   if(!presetSel.size){ toast("1体は選んでね"); return; }
   const n=presetEdit;
+  const name=(presetNameDraft||"").trim().slice(0,12);
   presetEdit=null;
-  db.ref(`players/${PID}/presets/${n}`).set([...presetSel]).then(()=>toast(`プリセット${n+1}を保存した！`)).catch(dbErr);
+  const up={};
+  up[`players/${PID}/presets/${n}`]=[...presetSel];
+  up[`players/${PID}/presetNames/${n}`]=name||null; // 空なら既定名に戻す
+  db.ref().update(up).then(()=>toast(`「${name||`プリセット${n+1}`}」を保存した！`)).catch(dbErr);
   presetSel.clear();
+  presetNameDraft="";
   renderUnits();
 }
 function delPreset(n){
-  db.ref(`players/${PID}/presets/${n}`).set(null).then(()=>toast(`プリセット${n+1}を削除した`)).catch(dbErr);
+  const up={};
+  up[`players/${PID}/presets/${n}`]=null;
+  up[`players/${PID}/presetNames/${n}`]=null; // 名前も一緒に消す
+  db.ref().update(up).then(()=>toast(`プリセット${n+1}を削除した`)).catch(dbErr);
 }
 // 選択トグルはボタン・チップだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
 function togPre(id){
@@ -1489,7 +1509,7 @@ function applyPreset(n){
   const ok=ids.filter(id=>{ const u=me.units?.[id]; return u&&u.hp>0&&!u.defendingAt; });
   selUnits=new Set(ok.slice(0,6));
   const skipped=ids.filter(id=>me.units?.[id]).length-ok.length;
-  toast(skipped?`プリセット${n+1}をセット（${skipped}体はHP0か防衛中でお休み）`:`プリセット${n+1}をセット！`);
+  toast(skipped?`「${presetName(n)}」をセット（${skipped}体はHP0か防衛中でお休み）`:`「${presetName(n)}」をセット！`);
   viewAttack();
 }
 
