@@ -148,6 +148,7 @@ button{font-family:inherit;}
 .rank.F{background:#8d93a8;} .rank.C{background:#7ad14f;} .rank.B{background:#57b6ff;} .rank.A{background:var(--gold); box-shadow:0 0 8px var(--gold);}
 .stat{color:var(--dim);}
 .badge.terb{color:var(--gold); border-color:var(--gold);}
+.skline{color:#c9a3ff;}
 .mini{font-size:13px; border-radius:6px; border:1px solid var(--line); background:#0006; color:var(--text); padding:8px 12px; cursor:pointer;}
 .mini:disabled{opacity:.35;}
 .mini.sel{background:var(--gold); color:#111; border-color:var(--gold);}
@@ -497,41 +498,79 @@ function terrainNote(bid){
   return `⛰ ${d.terLore||""}${elmIco(d.terrain)}属性が強い！（攻守×${TERRAIN_MULT}）`;
 }
 
-// クリティカル: ときどき（15%）ダメージ2倍。💥テンションMAXタイム中は発生率アップ
+// クリティカル: ときどき（15%）ダメージ2倍。💥テンションMAXタイムとスキルで変動（判定はskCritRoll）
 const CRIT_RATE = 0.15, CRIT_MULT = 2;
-const critRoll = () => Math.random()<CRIT_RATE*(eventActive("crit2")?EVENT_CRIT_MULT:1) ? CRIT_MULT : 1;
+
+// スキル: 人材の種類（名前）ごとに1つ。バトルで自動発動する。
+// エンジンはfxだけを見るので、名前・説明が違っても同じfxなら同じ動きになる
+const SKILLS = {
+  // fx:"atk" … whenの条件を満たしている間、自分の攻撃がmult倍
+  lateBloom:   {ico:"⏰", name:"明日から本気出す", fx:"atk", when:"round3", mult:1.5, desc:"ラウンド3以降、攻撃1.5倍"},
+  fullThrottle:{ico:"🏎", name:"フルスロットル",   fx:"atk", when:"round1", mult:2,   desc:"ラウンド1のあいだ攻撃2倍"},
+  lastStand:   {ico:"🔥", name:"ハングリー精神",   fx:"atk", when:"lowHp",  mult:1.5, desc:"自分のHPが30%以下のとき攻撃1.5倍"},
+  nocturnal:   {ico:"🌙", name:"夜行性",           fx:"atk", when:"night",  mult:1.5, desc:"18時〜朝6時のあいだ攻撃1.5倍"},
+  // fx:"solo" … 生きている味方が自分1体だけのとき攻守mult倍
+  solo:        {ico:"🕶", name:"ぼっちの意地",     fx:"solo", mult:1.5, desc:"戦っているのが自分1体だけのとき攻守1.5倍"},
+  // fx:"snowball" … 敵を1体倒すごとに攻撃mult倍（累積）
+  snowball:    {ico:"📖", name:"学びの追求",       fx:"snowball", mult:1.2, desc:"敵を1体倒すごとに攻撃1.2倍（そのバトル中・累積）"},
+  // fx:"crit"/"critMult" … クリティカル率アップ／クリティカル倍率変更
+  critUp:      {ico:"🎯", name:"無心の一撃",       fx:"crit", add:0.10, desc:"クリティカル率+10%"},
+  sparkle:     {ico:"⚡", name:"電光石火",         fx:"crit", add:0.10, desc:"クリティカル率+10%"},
+  smite:       {ico:"🌩", name:"雷を落とす",       fx:"critMult", mult:3, desc:"クリティカルのダメージが3倍になる"},
+  // fx:"dodge" … rateの確率で受けるダメージをkeep倍に（keep:0なら完全回避）
+  dodgeHalf:   {ico:"😪", name:"寝たふり",         fx:"dodge", rate:0.25, keep:0.5, desc:"25%の確率でダメージを半分に受け流す"},
+  dodgeFull:   {ico:"🚶", name:"やる気のなさ",     fx:"dodge", rate:0.2,  keep:0,   desc:"20%の確率で攻撃を完全に回避する"},
+  // fx:"survive" … 倒される一撃を1バトルに1回だけHP1で耐える
+  survive:     {ico:"🏃", name:"帰宅への執念",     fx:"survive", desc:"やられる一撃を1回だけHP1で耐える"},
+  // fx:"regen"/"medic" … 毎ラウンド終了時に回復
+  regen:       {ico:"📝", name:"反省文の速筆",     fx:"regen", pct:0.10, desc:"毎ラウンド終了時、自分のHPが10%回復"},
+  medic:       {ico:"🤝", name:"みんなの命綱",     fx:"medic", pct:0.15, desc:"毎ラウンド、いちばん傷ついた味方のHPを15%回復"},
+  // fx:"team"/"self" … 開幕にステータス補正（そのバトル中ずっと有効）
+  teamAtk:     {ico:"🏆", name:"優勝の風格",       fx:"team", stat:"atk", mult:1.1, target:"ally",  desc:"開幕で味方全員の攻撃+10%"},
+  teamDef:     {ico:"📈", name:"平均点の引き上げ", fx:"team", stat:"def", mult:1.1, target:"ally",  desc:"開幕で味方全員の守り+10%"},
+  blueprint:   {ico:"📐", name:"巨匠の設計図",     fx:"team", stat:"def", mult:1.1, target:"ally",  desc:"開幕で味方全員の守り+10%"},
+  armorBreak:  {ico:"📚", name:"秘伝の過去問",     fx:"team", stat:"def", mult:0.9, target:"enemy", desc:"開幕で敵全員の守り-10%"},
+  debug:       {ico:"🐛", name:"一目でデバッグ",   fx:"team", stat:"def", mult:0.9, target:"enemy", desc:"開幕で敵全員の守り-10%"},
+  speech:      {ico:"🎤", name:"校長講話",         fx:"team", stat:"atk", mult:0.9, target:"enemy", desc:"開幕で敵全員の攻撃-10%（眠気）"},
+  concrete:    {ico:"🧱", name:"鉄筋コンクリート", fx:"self", stat:"def", mult:1.3, desc:"自分の守りが常に1.3倍"},
+};
 
 // HPはローマ字表記が短いほど高め・攻撃力は画数が多いほど高め、の傾向で調整済み
 const UNIT_POOL = {
-  F:[ {name:"課題未提出学生", hp:60, atk:12, def:2, desc:"口ぐせは「明日出します」。明日は永遠に来ない。"},
-      {name:"居眠り学生",     hp:75, atk:8,  def:3, desc:"授業中の記憶がない。夢の中では成績優秀。"},
-      {name:"停寮学生",       hp:80, atk:9,  def:2, desc:"寮則を破った代償は大きかった。"},
-      {name:"訓告学生",       hp:65, atk:11, def:3, desc:"反省文の執筆速度だけは学内トップクラス。"} ],
-  C:[ {name:"無趣味な学生",   hp:110, atk:16, def:6, desc:"休日は寝て終わる。それはそれで幸せらしい。"},
-      {name:"専門教科も好きではない学生", hp:95, atk:22, def:5, desc:"なぜ高専に入ったのかは本人にも謎。"},
-      {name:"ぼっちな学生",   hp:130, atk:15, def:6, desc:"昼休みは非常階段で過ごす。実は強い。"},
-      {name:"帰宅部学生",     hp:120, atk:17, def:7, desc:"帰宅速度は学内最速。逃げ足も速い。"},
-      {name:"根暗な学生",     hp:105, atk:20, def:8, desc:"目は合わせてくれないが、夜行性で粘り強い。"} ],
-  B:[ {name:"コンテスト優勝学生", hp:160, atk:38, def:11, desc:"高専ロボコンの星。技術力はホンモノ。"},
-      {name:"成績優秀学生",   hp:180, atk:30, def:12, desc:"クラスの平均点を一人で押し上げる。"},
-      {name:"宿題写させてくれる学生", hp:170, atk:34, def:13, desc:"みんなの命綱。テスト前は行列ができる。"},
-      {name:"過去問持ってる学生", hp:200, atk:28, def:14, desc:"代々受け継がれる秘伝の資料を持つ。"} ],
-  A:[ {name:"阿波賀校長",     hp:280, atk:62, def:22, desc:"名大から来た。エディンバラ大学名誉博士。"},
-      {name:"早坂学生主事",   hp:320, atk:50, def:20, desc:"怒らせてはいけない人ランキング不動の1位。"},
-      {name:"平野学先生",     hp:260, atk:65, def:24, desc:"名前が「学」。学ぶために生まれてきた男。"} ],
+  F:[ {name:"課題未提出学生", hp:60, atk:12, def:2, skill:"lateBloom", desc:"口ぐせは「明日出します」。明日は永遠に来ない。"},
+      {name:"居眠り学生",     hp:75, atk:8,  def:3, skill:"dodgeHalf", desc:"授業中の記憶がない。夢の中では成績優秀。"},
+      {name:"停寮学生",       hp:80, atk:9,  def:2, skill:"lastStand", desc:"寮則を破った代償は大きかった。"},
+      {name:"訓告学生",       hp:65, atk:11, def:3, skill:"regen",     desc:"反省文の執筆速度だけは学内トップクラス。"} ],
+  C:[ {name:"無趣味な学生",   hp:110, atk:16, def:6, skill:"critUp",   desc:"休日は寝て終わる。それはそれで幸せらしい。"},
+      {name:"専門教科も好きではない学生", hp:95, atk:22, def:5, skill:"dodgeFull", desc:"なぜ高専に入ったのかは本人にも謎。"},
+      {name:"ぼっちな学生",   hp:130, atk:15, def:6, skill:"solo",     desc:"昼休みは非常階段で過ごす。実は強い。"},
+      {name:"帰宅部学生",     hp:120, atk:17, def:7, skill:"survive",  desc:"帰宅速度は学内最速。逃げ足も速い。"},
+      {name:"根暗な学生",     hp:105, atk:20, def:8, skill:"nocturnal", desc:"目は合わせてくれないが、夜行性で粘り強い。"} ],
+  B:[ {name:"コンテスト優勝学生", hp:160, atk:38, def:11, skill:"teamAtk", desc:"高専ロボコンの星。技術力はホンモノ。"},
+      {name:"成績優秀学生",   hp:180, atk:30, def:12, skill:"teamDef",  desc:"クラスの平均点を一人で押し上げる。"},
+      {name:"宿題写させてくれる学生", hp:170, atk:34, def:13, skill:"medic", desc:"みんなの命綱。テスト前は行列ができる。"},
+      {name:"過去問持ってる学生", hp:200, atk:28, def:14, skill:"armorBreak", desc:"代々受け継がれる秘伝の資料を持つ。"} ],
+  A:[ {name:"阿波賀校長",     hp:280, atk:62, def:22, skill:"speech",   desc:"名大から来た。エディンバラ大学名誉博士。"},
+      {name:"早坂学生主事",   hp:320, atk:50, def:20, skill:"smite",    desc:"怒らせてはいけない人ランキング不動の1位。"},
+      {name:"平野学先生",     hp:260, atk:65, def:24, skill:"snowball", desc:"名前が「学」。学ぶために生まれてきた男。"} ],
 };
 // スターター配布用：各学科の学科長（Aランク）
 const DEPT_HEADS = {
-  M:{name:"鬼頭俊介学科長", hp:290, atk:60, def:22, desc:"機械のことなら何でも直す、M科の大黒柱。"},
-  E:{name:"光本真一学科長", hp:290, atk:60, def:22, desc:"回路も人脈も太い、E科の電源。"},
-  I:{name:"江﨑信行学科長", hp:290, atk:60, def:22, desc:"どんなバグも一目で見抜く、I科の頭脳。"},
-  C:{name:"小林睦学科長",   hp:290, atk:60, def:22, desc:"コンクリートより固い信頼、C科の礎。"},
-  A:{name:"鈴木健次学科長", hp:290, atk:60, def:22, desc:"図面にもデザインにも妥協しない、A科の巨匠。"},
+  M:{name:"鬼頭俊介学科長", hp:290, atk:60, def:22, skill:"fullThrottle", desc:"機械のことなら何でも直す、M科の大黒柱。"},
+  E:{name:"光本真一学科長", hp:290, atk:60, def:22, skill:"sparkle",   desc:"回路も人脈も太い、E科の電源。"},
+  I:{name:"江﨑信行学科長", hp:290, atk:60, def:22, skill:"debug",     desc:"どんなバグも一目で見抜く、I科の頭脳。"},
+  C:{name:"小林睦学科長",   hp:290, atk:60, def:22, skill:"concrete",  desc:"コンクリートより固い信頼、C科の礎。"},
+  A:{name:"鈴木健次学科長", hp:290, atk:60, def:22, skill:"blueprint", desc:"図面にもデザインにも妥協しない、A科の巨匠。"},
 };
-// 名前→説明の逆引き（人材カード表示用）
+// 名前→説明・スキルの逆引き（既存の手持ち人材にも名前引きでスキルが付くのでDB移行いらず）
 const UNIT_DESC = {};
-Object.values(UNIT_POOL).flat().forEach(b=>UNIT_DESC[b.name]=b.desc);
-Object.values(DEPT_HEADS).forEach(b=>UNIT_DESC[b.name]=b.desc);
+const UNIT_SKILL = {};
+Object.values(UNIT_POOL).flat().concat(Object.values(DEPT_HEADS)).forEach(b=>{
+  UNIT_DESC[b.name]=b.desc;
+  if(b.skill) UNIT_SKILL[b.name]=b.skill;
+});
+// ユニット（手持ち・防衛中どちらの形式でも）からスキル定義を引く
+const skillDef = u => { const id=UNIT_SKILL[u?.name]; return id ? {id, ...SKILLS[id]} : null; };
 const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
 const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
 
@@ -958,9 +997,10 @@ function viewDefend(){
     const list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
     if(!list.length) html+=`<p class="note">配置できる人材がいない（HP0か防衛中）。ガシャで引くか回復しよう。</p>`;
     list.forEach(([id,u])=>{
-      const tb=ter&&u.elm===ter;
+      const tb=ter&&u.elm===ter, sk=skillDef(u);
       html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b></div>
         <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div>
+        ${sk?`<div class="note skline">✨${sk.ico}${sk.name}（${sk.desc}）</div>`:""}
         <button class="mini" onclick="placeDef('${id}')">引きこもりとして置く</button></div>`;
     });
   }
@@ -1096,10 +1136,11 @@ function viewAttack(){
     ELM_KEYS.map(k=>`<button class="mini ${atkFilter===k?"sel":""}" onclick="setAtkFilter('${k}')">${ELEMENTS[k].ico}${ELEMENTS[k].name}</button>`).join("")+`</div>`;
   if(!list.length) html+=`<p class="note">${hasAny?"この属性の出撃できる人材はいない。":"出撃できる人材がいない。ガシャで引くか回復しよう。"}</p>`;
   list.forEach(([id,u])=>{
-    const tb=ter&&u.elm===ter;
+    const tb=ter&&u.elm===ter, sk=skillDef(u);
     html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
       <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" data-sel="${id}" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
-      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div></div>`;
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div>
+      ${sk?`<div class="note skline">✨${sk.ico}${sk.name}（${sk.desc}）</div>`:""}</div>`;
   });
   html+=`<div class="atkfloat"><div class="selchips" id="atkChips"></div>
     <button class="bigbtn" id="atkGoBtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
@@ -1128,6 +1169,84 @@ function togSel(id){
 }
 
 /* =============== バトル =============== */
+// --- スキル処理（bAtk/bDefはバトル用の作業コピー。攻撃側・防衛側どちらにも同じ関数を使う） ---
+// 開幕スキル: self（自分の補正）→ team（味方強化・敵弱体）の順に適用
+function skOpening(side, enemy, log){
+  side.forEach(u=>{
+    const s=skillDef(u); if(!s) return;
+    if(s.fx==="self"){
+      const k=s.stat==="atk"?"bAtk":"bDef";
+      u[k]=Math.round(u[k]*s.mult);
+      log.push({c:"sys",t:`✨ ${u.name} のスキル「${s.ico}${s.name}」！ ${s.desc}`});
+    }
+  });
+  side.forEach(u=>{
+    const s=skillDef(u); if(!s||s.fx!=="team") return;
+    const k=s.stat==="atk"?"bAtk":"bDef";
+    (s.target==="enemy"?enemy:side).forEach(x=>{ x[k]=Math.round(x[k]*s.mult); });
+    log.push({c:"sys",t:`✨ ${u.name} のスキル「${s.ico}${s.name}」！ ${s.desc}`});
+  });
+}
+// 攻撃時の倍率（条件つき攻撃アップ系）
+function skAtkMult(u, allies, round){
+  const s=skillDef(u); if(!s) return 1;
+  if(s.fx==="atk"){
+    if(s.when==="round1"  && round===1) return s.mult;
+    if(s.when==="round3"  && round>=3) return s.mult;
+    if(s.when==="lowHp"   && u.hp<=u.maxHp*0.3) return s.mult;
+    if(s.when==="night"){ const h=new Date().getHours(); if(h>=18||h<6) return s.mult; }
+    return 1;
+  }
+  if(s.fx==="solo") return allies.filter(x=>x.hp>0).length===1 ? s.mult : 1;
+  if(s.fx==="snowball") return Math.pow(s.mult, u.skKills||0);
+  return 1;
+}
+// 防御時の倍率（今はぼっちの意地のみ）
+function skDefMult(u, allies){
+  const s=skillDef(u);
+  return (s?.fx==="solo" && allies.filter(x=>x.hp>0).length===1) ? s.mult : 1;
+}
+// クリティカル判定（スキルで率・倍率が変わる。イベント倍率込み）
+function skCritRoll(u){
+  const s=skillDef(u);
+  let rate=CRIT_RATE*(eventActive("crit2")?EVENT_CRIT_MULT:1);
+  if(s?.fx==="crit") rate+=s.add;
+  const mult=s?.fx==="critMult"?s.mult:CRIT_MULT;
+  return Math.random()<rate?mult:1;
+}
+// ダメージを与える（回避・食いしばり系はここで発動）。実ダメージとログ用の注記を返す
+function skHit(t, dmg){
+  const s=skillDef(t); let note="";
+  if(s?.fx==="dodge" && Math.random()<s.rate){
+    if(s.keep<=0) return {dmg:0, note:`（${s.ico}${s.name}でひらりと回避！）`};
+    dmg=Math.max(1,Math.round(dmg*s.keep)); note=`（${s.ico}${s.name}で受け流した！）`;
+  }
+  t.hp-=dmg;
+  if(t.hp<=0 && s?.fx==="survive" && !t.skUsed){ t.skUsed=true; t.hp=1; note+=`（${s.ico}${s.name}でHP1で踏みとどまった！）`; }
+  if(t.hp<0) t.hp=0;
+  return {dmg, note};
+}
+// ラウンド終了時の回復スキル
+function skRoundEnd(side, log){
+  side.forEach(u=>{
+    if(u.hp<=0) return;
+    const s=skillDef(u); if(!s) return;
+    if(s.fx==="regen" && u.hp<u.maxHp){
+      const h=Math.min(u.maxHp-u.hp, Math.max(1,Math.round(u.maxHp*s.pct)));
+      u.hp+=h;
+      log.push({c:"sys",t:`${s.ico} ${u.name} は「${s.name}」でHPを${h}回復`});
+    }
+    if(s.fx==="medic"){
+      const hurt=side.filter(x=>x.hp>0&&x.hp<x.maxHp).sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
+      if(hurt){
+        const h=Math.min(hurt.maxHp-hurt.hp, Math.max(1,Math.round(hurt.maxHp*s.pct)));
+        hurt.hp+=h;
+        log.push({c:"sys",t:`${s.ico} ${u.name} の「${s.name}」！ ${hurt.name} のHPを${h}回復`});
+      }
+    }
+  });
+}
+
 function startBattle(){
   const bid=curB;
   db.ref("buildings/"+bid).get().then(snap=>{
@@ -1155,9 +1274,15 @@ function runBattle(bid,b){
   const koyoGain={}; // 防衛側プレイヤーへのこうよう
   const evK=eventActive("defkoyo2")?EVENT_DEF_KOYO_MULT:1; // 🛡深夜の防衛戦
 
+  // バトル用ステータス（装備込み）を用意して開幕スキルを発動（攻撃側先）
+  A.forEach(u=>{ u.bAtk=eqAtk(u); u.bDef=eqDef(u); });
+  D.forEach(d=>{ d.bAtk=d.atk; d.bDef=d.def; }); // 防衛側は配置時に装備込みで保存済み
+
   log.push({c:"sys",t:`⚔ ${b.name} への攻撃開始！（防衛${D.length}体）`});
   if(ter) log.push({c:"sys",t:terrainNote(bid)});
   if(evK>1) log.push({c:"sys",t:`🛡 ${EVENTS.find(e=>e.id==="defkoyo2").name} 開催中！ 防衛側は撃破こうよう${EVENT_DEF_KOYO_MULT}倍`});
+  skOpening(A,D,log);
+  skOpening(D,A,log);
   const MAX_ROUNDS=10;
   for(let r=1;r<=MAX_ROUNDS;r++){
     log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───`});
@@ -1166,14 +1291,14 @@ function runBattle(bid,b){
       if(u.hp<=0) continue;
       const tgt=D.find(d=>d.hp>0);
       if(tgt){
-        const mult=elmMult(u.elm,tgt.elm), crit=critRoll();
-        const dmg=Math.max(1,Math.round((eqAtk(u)*tm(u.elm)-tgt.def*tm(tgt.elm))*mult*crit));
-        tgt.hp-=dmg;
-        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(u.elm)>1?"（⛰地形ボーナス！）":""}`});
-        if(tgt.hp<=0){ tgt.hp=0; kills++; mats+=2; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
+        const mult=elmMult(u.elm,tgt.elm), crit=skCritRoll(u);
+        const raw=Math.max(1,Math.round((u.bAtk*tm(u.elm)*skAtkMult(u,A,r)-tgt.bDef*tm(tgt.elm)*skDefMult(tgt,D))*mult*crit));
+        const hit=skHit(tgt,raw);
+        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(u.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
+        if(tgt.hp<=0){ kills++; mats+=2; u.skKills=(u.skKills||0)+1; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
       }else{
-        const crit=critRoll();
-        const dmg=Math.max(1,Math.round((eqAtk(u)*tm(u.elm)-bDef)*crit));
+        const crit=skCritRoll(u);
+        const dmg=Math.max(1,Math.round((u.bAtk*tm(u.elm)*skAtkMult(u,A,r)-bDef)*crit));
         const cr=crit>1?"（💥クリティカル！）":"";
         buildingHits++; mats+=1;
         if(b.type==="facility"){
@@ -1194,23 +1319,24 @@ function runBattle(bid,b){
       if(d.hp<=0) continue;
       const t=aliveA[Math.floor(Math.random()*aliveA.length)];
       if(!t||t.hp<=0) continue;
-      const mult=elmMult(d.elm,t.elm), crit=critRoll();
-      const dmg=Math.max(1,Math.round((d.atk*tm(d.elm)-eqDef(t)*tm(t.elm))*mult*crit));
-      t.hp-=dmg;
-      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}`});
-      if(t.hp<=0){ t.hp=0; koyoGain[d.pid]=(koyoGain[d.pid]||0)+evK; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
+      const mult=elmMult(d.elm,t.elm), crit=skCritRoll(d);
+      const raw=Math.max(1,Math.round((d.bAtk*tm(d.elm)*skAtkMult(d,D,r)-t.bDef*tm(t.elm)*skDefMult(t,A))*mult*crit));
+      const hit=skHit(t,raw);
+      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
+      if(t.hp<=0){ koyoGain[d.pid]=(koyoGain[d.pid]||0)+evK; d.skKills=(d.skKills||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
     }
     if(!D.some(d=>d.hp>0)){
       // 建物の反撃
       const t2=A.filter(u=>u.hp>0);
       if(t2.length){
         const t=t2[Math.floor(Math.random()*t2.length)];
-        const dmg=Math.max(1,Math.round(bAtk-eqDef(t)*tm(t.elm)));
-        t.hp=Math.max(0,t.hp-dmg);
-        log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${dmg}ダメージ`});
+        const raw=Math.max(1,Math.round(bAtk-t.bDef*tm(t.elm)*skDefMult(t,A)));
+        const hit=skHit(t,raw);
+        log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${hit.dmg}ダメージ${hit.note}`});
         if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
       }
     }
+    skRoundEnd(A,log); skRoundEnd(D,log);
     if(!A.some(u=>u.hp>0)) { log.push({c:"sys",t:"全滅…撤退！"}); break; }
   }
 
@@ -1356,8 +1482,10 @@ $("gachaBtn").onclick=()=>{
     missionProg("gacha");
     setTimeout(()=>{
       $("gachaMachine").classList.remove("spin");
+      const sk=skillDef(u);
       $("gachaResult").innerHTML=`<div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><span class="badge">${elmIco(u.elm)}</span><b>${esc(u.name)}</b></div>
         <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>
+        ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
         ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>`;
     },900);
   }).catch(()=>{ $("gachaMachine").classList.remove("spin"); dbErr(); });
@@ -1547,6 +1675,7 @@ function renderUnits(){
   units.forEach(([id,u])=>{
     const hpr=u.hp/u.maxHp;
     const d=document.createElement("div"); d.className="card";
+    const sk=skillDef(u);
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
     const eqBtns=Object.entries(EQUIPS).filter(([k])=>freeEquips(k)>0 && u.equip!==k)
       .map(([k,e])=>`<button class="mini" onclick="setEquip('${id}','${k}')">${e.name}を装備</button>`).join("");
@@ -1557,6 +1686,7 @@ function renderUnits(){
         ${presetEdit!==null?`<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" data-pre="${id}" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`:""}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}</div>
+      ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
       ${u.defendingAt?'<div class="note">回復・装備変更するには呼び戻してね</div>':
         `<div class="row" style="margin:6px 0 0">${Object.entries(ITEMS).map(([k,it])=>
