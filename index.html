@@ -249,6 +249,11 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
   padding:4px 0; border-bottom:1px solid var(--line);
 }
 
+/* ===== プリセットメンバーの一覧行（ステータスをパッと確認できる） ===== */
+.mrow{display:flex; align-items:center; gap:6px; font-size:12px; margin:4px 0; flex-wrap:wrap;}
+.mrow .stat{font-size:12px;}
+.sktap{cursor:pointer;}
+
 /* ===== 選択中メンバーのチップ（タップで外せる） ===== */
 .selchips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0;}
 .chip{
@@ -1152,7 +1157,7 @@ function renderAtkChips(){
   const box=$("atkChips"); if(!box) return;
   const chips=[...selUnits].map(id=>{
     const u=me.units?.[id];
-    return u?`<button class="chip" onclick="togSel('${id}')">${esc(u.name)} ✕</button>`:"";
+    return u?`<button class="chip" onclick="togSel('${id}')">${u.rank}·${esc(u.name)} HP${u.hp} ✕</button>`:"";
   }).join("");
   box.innerHTML=chips||'<span class="note">出撃メンバーを「選ぶ」で追加してね（チップをタップすると外せる）</span>';
 }
@@ -1554,6 +1559,20 @@ function presetName(n){
   const nm=(me.presetNames||{})[n];
   return (nm&&String(nm).trim()) ? String(nm) : `プリセット${n+1}`;
 }
+// メンバー1体ぶんのコンパクト行（ランク・属性・HP・攻守・スキル・状態がひと目で分かる）
+function presetMemberRows(ids){
+  return (ids||[]).filter(id=>me.units?.[id]).map(id=>{
+    const u=me.units[id], sk=skillDef(u);
+    const st=u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>'
+      :(u.defendingAt?'<span class="badge">🛡防衛中</span>':"");
+    return `<div class="mrow"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?ELEMENTS[u.elm].ico:""}<b>${esc(u.name)}</b>
+      <span class="stat">HP${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</span>${sk?`<span class="sktap" onclick="showUnitSkill('${id}')">✨${sk.ico}</span>`:""}${st}</div>`;
+  }).join("");
+}
+function showUnitSkill(uid){
+  const u=me.units?.[uid], s=skillDef(u);
+  if(s) toast(`✨${s.ico}${s.name}: ${s.desc}`,4000);
+}
 function renderPresets(){
   const box=$("presetBox"); if(!box||!me) return;
   let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">攻撃時にワンタップで呼び出せるよ</span></h3>`;
@@ -1564,11 +1583,11 @@ function renderPresets(){
       continue;
     }
     const ids=getPreset(n);
-    const names=(ids||[]).filter(id=>me.units?.[id]).map(id=>esc(me.units[id].name));
+    const rows=ids?presetMemberRows(ids):"";
     html+=`<div class="card"><div class="top"><b>${esc(presetName(n))}</b>
       <button class="mini" style="margin-left:auto" ${presetEdit!==null?"disabled":""} onclick="editPreset(${n})">${ids?"編集":"作成"}</button>
       ${ids?`<button class="mini" ${presetEdit!==null?"disabled":""} onclick="delPreset(${n})">削除</button>`:""}</div>
-      <div class="note">${ids?(names.length?names.join("、"):"（メンバーがいない）"):"未設定"}</div></div>`;
+      ${ids?(rows||'<div class="note">（メンバーがいない）</div>'):'<div class="note">未設定</div>'}</div>`;
   }
   box.innerHTML=html;
   renderPreEditBar();
@@ -1590,7 +1609,7 @@ function renderPreChips(){
   const box=$("preChips"); if(!box) return;
   const chips=[...presetSel].map(id=>{
     const u=me.units?.[id];
-    return u?`<button class="chip" onclick="togPre('${id}')">${esc(u.name)} ✕</button>`:"";
+    return u?`<button class="chip" onclick="togPre('${id}')">${u.rank}·${esc(u.name)} HP${u.hp} ✕</button>`:"";
   }).join("");
   box.innerHTML=chips||'<span class="note">まだメンバーがいないよ（チップをタップすると外せる）</span>';
 }
