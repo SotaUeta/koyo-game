@@ -438,6 +438,8 @@ const BUILDING_DEFS = [
     <button class="bigbtn" id="logoutGo" style="border-color:var(--danger); color:var(--danger)">ログアウトする</button>
   </div>
 </div></div>
+<!-- 装備ピッカー -->
+<div class="overlay" id="ovEquip"><div class="sheet" id="equipSheet"></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -467,16 +469,19 @@ const ITEMS = {
 };
 
 // 装備（人材1人につき1つ・バトルでまれにドロップ）
+// 効果はデータ駆動: atkAdd/atkMul=攻撃, defAdd/defMul=守り, dropMul=素材ドロップ量, healPct=バトル後にmaxHpの割合で回復
 const EQUIPS = {
-  toygun:{name:"🔫おもちゃの銃", desc:"攻撃力+50",           lore:"文化祭の射的の景品。意外と飛ぶ。"},
-  osake: {name:"🍶お酒",         desc:"攻撃力1.5倍",         lore:"持ち込み厳禁。見つかったら没収どころでは済まない。"},
-  jisshu:{name:"🥼実習服",       desc:"守り1.5倍",           lore:"油のしみ込んだ歴戦の相棒。洗っても落ちない。"},
-  suit:  {name:"🤵スーツ",       desc:"守り+50",             lore:"就活の戦闘服。着ると背筋が伸びる。"},
-  pc:    {name:"💻パソコン",     desc:"素材ドロップ量1.2倍", lore:"高専生の相棒。膝の上でコンパイルが走る。"},
+  toygun:{name:"🔫おもちゃの銃", desc:"攻撃力+50",           atkAdd:50,           lore:"文化祭の射的の景品。意外と飛ぶ。"},
+  osake: {name:"🍶お酒",         desc:"攻撃力1.5倍",         atkMul:1.5,          lore:"持ち込み厳禁。見つかったら没収どころでは済まない。"},
+  jisshu:{name:"🥼実習服",       desc:"守り1.5倍",           defMul:1.5,          lore:"油のしみ込んだ歴戦の相棒。洗っても落ちない。"},
+  suit:  {name:"🤵スーツ",       desc:"守り+50",             defAdd:50,           lore:"就活の戦闘服。着ると背筋が伸びる。"},
+  pc:    {name:"💻パソコン",     desc:"素材ドロップ量1.2倍", dropMul:1.2,         lore:"高専生の相棒。膝の上でコンパイルが走る。"},
+  ramen: {name:"🍜カップ麺",     desc:"バトル後にHPが25%回復", healPct:0.25,      lore:"3分待てないのが高専生。すすりながら次の戦いへ。"},
+  akaten:{name:"📕赤点答案",     desc:"攻撃2倍・守り0.5倍",  atkMul:2, defMul:0.5, lore:"真っ赤に染まった答案。もう失うものは何もない、ロマンの一枚。"},
 };
 const EQUIP_DROP_RATE = 0.5; // 10回に1回くらい
-function eqAtk(u){ let a=u.atk; if(u.equip==="toygun") a+=50; else if(u.equip==="osake") a=Math.round(a*1.5); return a; }
-function eqDef(u){ let d=u.def; if(u.equip==="suit") d+=50; else if(u.equip==="jisshu") d=Math.round(d*1.5); return d; }
+function eqAtk(u){ const e=EQUIPS[u.equip]; if(!e) return u.atk; let a=u.atk; if(e.atkAdd) a+=e.atkAdd; if(e.atkMul) a=Math.round(a*e.atkMul); return a; }
+function eqDef(u){ const e=EQUIPS[u.equip]; if(!e) return u.def; let d=u.def; if(e.defAdd) d+=e.defAdd; if(e.defMul) d=Math.round(d*e.defMul); return d; }
 
 // 属性: 火→氷→風→土→雷→水→火 の順で有利（beats = 自分が強い相手）
 const ELEMENTS = {
@@ -1345,11 +1350,12 @@ function runBattle(bid,b){
     if(!A.some(u=>u.hp>0)) { log.push({c:"sys",t:"全滅…撤退！"}); break; }
   }
 
-  // 素材ドロップ（倒した数＆建物ヒット×守備側倍率×💻パソコン装備×🎒イベント）
+  // 素材ドロップ（倒した数＆建物ヒット×守備側倍率×装備のdropMul×🎒イベント）
   const drop={};
   const pcN=A.filter(u=>u.equip==="pc").length;
+  const eqDropMul=A.reduce((m,u)=>m*(EQUIPS[u.equip]?.dropMul||1),1);
   const evDrop=eventActive("drop2")?EVENT_DROP_MULT:1;
-  const total=Math.max(1,Math.floor(mats*defFacMult*Math.pow(1.2,pcN)*evDrop));
+  const total=Math.max(1,Math.floor(mats*defFacMult*eqDropMul*evDrop));
   const prefer=b.owner?FAC_MAT[b.owner]:null;
   const keys=Object.keys(MATERIALS);
   for(let i=0;i<total;i++){
@@ -1393,7 +1399,18 @@ function runBattle(bid,b){
       }
     });
   }
-  A.forEach(u=>{ up[`players/${PID}/units/${u.id}/hp`]=Math.max(0,u.hp); });
+  // 出撃メンバーのHP確定。🍜カップ麺は生き残っていればバトル後に回復
+  const ramenHeals=[];
+  A.forEach(u=>{
+    let hp=Math.max(0,u.hp);
+    const hpct=EQUIPS[u.equip]?.healPct;
+    if(hpct && hp>0 && hp<u.maxHp){
+      const nh=Math.min(u.maxHp, hp+Math.max(1,Math.round(u.maxHp*hpct)));
+      if(nh>hp){ ramenHeals.push(`${u.name}(+${nh-hp})`); hp=nh; }
+    }
+    up[`players/${PID}/units/${u.id}/hp`]=hp;
+  });
+  if(ramenHeals.length) log.push({c:"sys",t:`🍜 カップ麺でHP回復: ${ramenHeals.join(" ")}`});
   Object.entries(drop).forEach(([k,v])=>{ up[`players/${PID}/materials/${k}`]=INC(v); });
   if(eqDrop) up[`players/${PID}/equips/${eqDrop}`]=INC(1);
   Object.entries(koyoGain).forEach(([pid,v])=>{
@@ -1696,10 +1713,7 @@ function renderUnits(){
     const d=document.createElement("div"); d.className="card";
     const sk=skillDef(u);
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
-    const eqBtns=Object.entries(EQUIPS).filter(([k])=>freeEquips(k)>0 && u.equip!==k)
-      .map(([k,e])=>`<button class="mini" onclick="setEquip('${id}','${k}')">${e.name}を装備</button>`).join("");
-    const eqRow=(u.equip||eqBtns)?`<div class="row" style="margin:6px 0 0">${
-      u.equip?`<button class="mini" onclick="setEquip('${id}',null)">✖${EQUIPS[u.equip].name}をはずす</button>`:""}${eqBtns}</div>`:"";
+    const eqBtn=`<button class="mini" onclick="openEquipPicker('${id}')">🎒 ${u.equip?"装備を変える":"装備する"}</button>`;
     d.innerHTML=`<div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
         ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}
         ${presetEdit!==null?`<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" data-pre="${id}" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`:""}</div>
@@ -1709,7 +1723,7 @@ function renderUnits(){
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
       ${u.defendingAt?'<div class="note">回復・装備変更するには呼び戻してね</div>':
         `<div class="row" style="margin:6px 0 0">${Object.entries(ITEMS).map(([k,it])=>
-          `<button class="mini" ${(me.items?.[k]||0)<1||u.hp>=u.maxHp?"disabled":""} onclick="useItem('${id}','${k}')">${it.name}</button>`).join("")}</div>`+eqRow}`;
+          `<button class="mini" ${(me.items?.[k]||0)<1||u.hp>=u.maxHp?"disabled":""} onclick="useItem('${id}','${k}')">${it.name}</button>`).join("")}${eqBtn}</div>`}`;
     wrap.appendChild(d);
   });
 }
@@ -1724,6 +1738,38 @@ function setEquip(uid,k){
   if(k && freeEquips(k)<1) return;
   db.ref(`players/${PID}/units/${uid}/equip`).set(k||null)
     .then(()=>toast(k?`${u.name} に ${EQUIPS[k].name} を装備！`:"装備をはずした")).catch(dbErr);
+}
+// 装備ピッカー（人材カードを膨らませないよう、ボタン→スクロールで選ぶ別画面にした）
+let equipPickUid=null;
+function openEquipPicker(uid){
+  const u=me.units?.[uid]; if(!u) return;
+  if(u.defendingAt){ toast("防衛中は装備を変えられないよ"); return; }
+  equipPickUid=uid;
+  $("ovEquip").classList.add("show");
+  renderEquipPicker();
+}
+function renderEquipPicker(){
+  const u=me.units?.[equipPickUid]; if(!u){ closeOv("ovEquip"); return; }
+  let html=`<h2>🎒 装備を選ぶ <button class="xbtn" onclick="closeOv('ovEquip')">閉じる</button></h2>
+    <div class="sub">${esc(u.name)}　攻${eqAtk(u)}／守${eqDef(u)}</div>
+    <div class="card"><div class="top"><b>装備なし</b>${
+      !u.equip?'<span class="badge" style="margin-left:auto">✔いま装備中</span>'
+        :'<button class="mini" style="margin-left:auto" onclick="pickEquip(null)">はずす</button>'}</div></div>`;
+  Object.entries(EQUIPS).forEach(([k,e])=>{
+    const free=freeEquips(k), owned=me.equips?.[k]||0, on=u.equip===k;
+    html+=`<div class="card"><div class="top"><b>${e.name}</b>${
+      on?'<span class="badge" style="margin-left:auto">✔いま装備中</span>'
+        :`<button class="mini" style="margin-left:auto" ${free<1?"disabled":""} onclick="pickEquip('${k}')">装備する</button>`}</div>
+      <div class="stat">効果: ${e.desc}　／　所持 ${owned}（空き ${free}）</div>
+      <div class="note">${e.lore}</div></div>`;
+  });
+  $("equipSheet").innerHTML=html;
+}
+function pickEquip(k){
+  const uid=equipPickUid;
+  if(k && freeEquips(k)<1){ toast("その装備は空きがないよ"); return; }
+  setEquip(uid,k);
+  closeOv("ovEquip");
 }
 function useItem(uid,ik){
   const u=me.units[uid];
@@ -1775,6 +1821,7 @@ $("mapLegend").innerHTML=Object.entries(FACTIONS).map(([k,f])=>
   `<span class="lchip"><i style="background:${f.color}"></i>${k}科</span>`).join("")
   +`<span class="lchip"><i style="background:#888"></i>中立</span>`;
 $("ovConfirm").onclick=e=>{ if(e.target.id==="ovConfirm") closeOv("ovConfirm"); };
+$("ovEquip").onclick=e=>{ if(e.target.id==="ovEquip") closeOv("ovEquip"); };
 
 /* =============== 起動 =============== */
 if(!configured){
