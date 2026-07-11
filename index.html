@@ -18,7 +18,10 @@ body{
   background:var(--bg); color:var(--text);
   font-family:'DotGothic16', monospace;
   display:flex; flex-direction:column; overflow:hidden;
+  /* ゲームUIなので長押しのテキスト選択（コピー吹き出し）を出さない */
+  user-select:none; -webkit-user-select:none;
 }
+input,textarea{user-select:text; -webkit-user-select:text;}
 button{font-family:inherit;}
 
 /* ===== header ===== */
@@ -149,7 +152,7 @@ button{font-family:inherit;}
 .stat{color:var(--dim);}
 .badge.terb{color:var(--gold); border-color:var(--gold);}
 .skline{color:#c9a3ff;}
-.mini{font-size:13px; border-radius:6px; border:1px solid var(--line); background:#0006; color:var(--text); padding:8px 12px; cursor:pointer;}
+.mini{font-size:13px; border-radius:6px; border:1px solid var(--line); background:#0006; color:var(--text); padding:8px 12px; cursor:pointer; white-space:nowrap;}
 .mini:disabled{opacity:.35;}
 .mini.sel{background:var(--gold); color:#111; border-color:var(--gold);}
 .matline{display:flex; flex-wrap:wrap; gap:6px 12px; font-size:13px; margin:6px 0; align-items:center;}
@@ -260,13 +263,18 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
   font-size:12px; border-radius:12px; border:1px solid var(--gold);
   background:#0006; color:var(--gold); padding:5px 10px; cursor:pointer;
 }
-/* プリセット編集バー（スクロールしても画面上部に固定） */
+/* プリセット編集バー（スクロールしても画面上部に固定・コンパクト） */
 #preEditBar{
-  display:none; border:2px solid var(--gold); border-radius:10px;
+  display:none; position:sticky; top:0; z-index:7;
+  border:2px solid var(--gold); border-radius:10px;
   background:var(--panel); padding:8px 10px; margin:4px 0;
 }
+/* 編集中は通常フィルタの固定を解除（小さい画面で固定領域が画面を覆い、リストまで届かなくなるのを防ぐ） */
+#tab-units.editing #unitFilters{position:static;}
+/* タップで名前変更できるテキスト */
+.renameable{cursor:pointer; text-decoration:underline dotted;}
 .preName{
-  width:100%; font-size:16px; padding:8px 10px; margin:6px 0 0;
+  width:100%; font-size:16px; padding:10px; margin:8px 0;
   border-radius:8px; border:2px solid var(--line);
   background:var(--panel2); color:var(--text); font-family:inherit;
 }
@@ -397,8 +405,8 @@ const BUILDING_DEFS = [
       <div class="matline" id="equipLine"></div>
       <div class="matline" id="matLine"></div>
     </details>
+    <div id="preEditBar"></div>
     <div id="unitFilters">
-      <div id="preEditBar"></div>
       <div class="matline" id="sortLine"></div>
       <div class="matline" id="elmLine"></div>
     </div>
@@ -428,6 +436,15 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovLog"><div class="sheet">
   <h2>⚔ バトル <button class="mini" id="blogSkip" onclick="skipLog()">⏩ 全部表示</button><button class="xbtn" onclick="closeOv('ovLog')">閉じる</button></h2>
   <div id="blog"></div>
+</div></div>
+<!-- プリセット名の変更 -->
+<div class="overlay" id="ovRename"><div class="sheet">
+  <h2>✎ プリセット名を変更 <button class="xbtn" onclick="closeOv('ovRename')">閉じる</button></h2>
+  <input id="renameInput" class="preName" maxlength="12" placeholder="12文字まで（空欄で元の名前に戻る）">
+  <div class="row">
+    <button class="bigbtn" onclick="closeOv('ovRename')">やめる</button>
+    <button class="bigbtn" style="background:var(--gold); color:#221a00; border-color:var(--gold)" onclick="saveRename()">保存する</button>
+  </div>
 </div></div>
 <!-- ログアウト確認 -->
 <div class="overlay" id="ovConfirm"><div class="sheet">
@@ -1574,7 +1591,7 @@ function renderMissions(){
 
 /* =============== 編成プリセット =============== */
 const PRESET_MAX=3;
-let presetEdit=null, presetSel=new Set(), presetNameDraft="";
+let presetEdit=null, presetSel=new Set(), renameN=null;
 function getPreset(n){ const ids=(me.presets||[])[n]; return ids?Object.values(ids):null; }
 // 保存済みの名前。未設定なら「プリセットN」を返す
 function presetName(n){
@@ -1597,16 +1614,16 @@ function showUnitSkill(uid){
 }
 function renderPresets(){
   const box=$("presetBox"); if(!box||!me) return;
-  let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">攻撃時にワンタップで呼び出せるよ</span></h3>`;
+  let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">名前タップで変更できるよ</span></h3>`;
   for(let n=0;n<PRESET_MAX;n++){
     if(presetEdit===n){
       html+=`<div class="card"><div class="top"><b>${esc(presetName(n))} を編集中</b></div>
-        <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。名前・保存・確認はいつでも画面上部の金色バーでできるよ</div></div>`;
+        <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。保存は画面上部の金色バーから</div></div>`;
       continue;
     }
     const ids=getPreset(n);
     const rows=ids?presetMemberRows(ids):"";
-    html+=`<div class="card"><div class="top"><b>${esc(presetName(n))}</b>
+    html+=`<div class="card"><div class="top"><b class="renameable" onclick="openRename(${n})">${esc(presetName(n))} ✎</b>
       <button class="mini" style="margin-left:auto" ${presetEdit!==null?"disabled":""} onclick="editPreset(${n})">${ids?"編集":"作成"}</button>
       ${ids?`<button class="mini" ${presetEdit!==null?"disabled":""} onclick="delPreset(${n})">削除</button>`:""}</div>
       ${ids?(rows||'<div class="note">（メンバーがいない）</div>'):'<div class="note">未設定</div>'}</div>`;
@@ -1614,18 +1631,37 @@ function renderPresets(){
   box.innerHTML=html;
   renderPreEditBar();
 }
-// 編集中だけ表示される固定バー（名前入力・保存ボタン・選択メンバーが常に見える）
+// 編集中だけ表示される固定バー（保存ボタンと選択メンバーが常に見える・名前は名前部分のタップで変更）
 function renderPreEditBar(){
   const bar=$("preEditBar"); if(!bar) return;
+  $("tab-units").classList.toggle("editing", presetEdit!==null);
   if(presetEdit===null){ bar.style.display="none"; bar.innerHTML=""; return; }
   bar.style.display="block";
-  bar.innerHTML=`<div class="top" style="display:flex; align-items:center; gap:6px;">
-      <b>📝 編集中</b><span id="preCnt">（${presetSel.size}/6体）</span>
+  bar.innerHTML=`<div class="top" style="display:flex; align-items:center; gap:6px; margin:0;">
+      <b class="renameable" onclick="openRename(${presetEdit})">${esc(presetName(presetEdit))} ✎</b><span id="preCnt">（${presetSel.size}/6体）</span>
       <button class="mini sel" style="margin-left:auto" onclick="savePreset()">✔ 保存</button>
       <button class="mini" onclick="cancelPreset()">やめる</button></div>
-    <input id="preNameInput" class="preName" maxlength="12" placeholder="プリセット名（例: 火力全開・12文字まで／任意）" value="${esc(presetNameDraft)}" oninput="presetNameDraft=this.value">
     <div class="selchips" id="preChips"></div>`;
   renderPreChips();
+}
+/* ---- 名前変更（名前タップで小モーダル） ---- */
+function openRename(n){
+  renameN=n;
+  $("renameInput").value=(me.presetNames||{})[n]||"";
+  $("ovRename").classList.add("show");
+  setTimeout(()=>$("renameInput").focus(),50);
+}
+function saveRename(){
+  if(renameN===null) return;
+  const n=renameN; renameN=null;
+  const name=$("renameInput").value.trim().slice(0,12);
+  closeOv("ovRename");
+  // 購読の反映を待たずに画面へ反映（すぐ名前が変わって見えるように）
+  me.presetNames={...(me.presetNames||{})};
+  if(name) me.presetNames[n]=name; else delete me.presetNames[n];
+  db.ref(`players/${PID}/presetNames/${n}`).set(name||null)
+    .then(()=>toast(`「${presetName(n)}」に変更した！`)).catch(dbErr);
+  renderUnits();
 }
 function renderPreChips(){
   const box=$("preChips"); if(!box) return;
@@ -1633,26 +1669,21 @@ function renderPreChips(){
     const u=me.units?.[id];
     return u?`<button class="chip" onclick="togPre('${id}')">${u.rank}·${esc(u.name)} HP${u.hp} ✕</button>`:"";
   }).join("");
-  box.innerHTML=chips||'<span class="note">まだメンバーがいないよ（チップをタップすると外せる）</span>';
+  box.innerHTML=chips||'<span class="note">下のリストで「選ぶ」を押してね</span>';
 }
 function editPreset(n){
   presetEdit=n;
   presetSel=new Set((getPreset(n)||[]).filter(id=>me.units?.[id]));
-  presetNameDraft=(me.presetNames||{})[n]||"";
   renderUnits();
 }
-function cancelPreset(){ presetEdit=null; presetSel.clear(); presetNameDraft=""; renderUnits(); }
+function cancelPreset(){ presetEdit=null; presetSel.clear(); renderUnits(); }
 function savePreset(){
   if(!presetSel.size){ toast("1体は選んでね"); return; }
   const n=presetEdit;
-  const name=(presetNameDraft||"").trim().slice(0,12);
   presetEdit=null;
-  const up={};
-  up[`players/${PID}/presets/${n}`]=[...presetSel];
-  up[`players/${PID}/presetNames/${n}`]=name||null; // 空なら既定名に戻す
-  db.ref().update(up).then(()=>toast(`「${name||`プリセット${n+1}`}」を保存した！`)).catch(dbErr);
+  db.ref(`players/${PID}/presets/${n}`).set([...presetSel])
+    .then(()=>toast(`「${presetName(n)}」を保存した！`)).catch(dbErr);
   presetSel.clear();
-  presetNameDraft="";
   renderUnits();
 }
 function delPreset(n){
@@ -1865,6 +1896,8 @@ $("mapLegend").innerHTML=Object.entries(FACTIONS).map(([k,f])=>
 $("ovConfirm").onclick=e=>{ if(e.target.id==="ovConfirm") closeOv("ovConfirm"); };
 $("ovEquip").onclick=e=>{ if(e.target.id==="ovEquip") closeOv("ovEquip"); };
 $("ovHeal").onclick=e=>{ if(e.target.id==="ovHeal") closeOv("ovHeal"); };
+$("ovRename").onclick=e=>{ if(e.target.id==="ovRename") closeOv("ovRename"); };
+$("renameInput").onkeydown=e=>{ if(e.key==="Enter") saveRename(); };
 
 /* =============== 起動 =============== */
 if(!configured){
