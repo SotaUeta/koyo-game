@@ -119,6 +119,13 @@ button{font-family:inherit;}
   background:#5a2bd0cc; padding:4px; letter-spacing:1px;
 }
 #geoBadge{position:sticky; top:24px; z-index:5; float:right; margin:6px; font-size:10px;}
+/* マップ左上のイベント案内ボタン（開催中は金色に光る） */
+#evInfoBtn{position:sticky; top:24px; z-index:5; float:left; margin:6px; font-size:10px; cursor:pointer;}
+#evInfoBtn.on{color:var(--gold); border-color:var(--gold); animation:evglow 1.2s ease-in-out infinite alternate;}
+.evrow.evon{border-color:var(--gold);}
+/* 時間と「開催中！」は折り返さず、入らないときは行ごと折り返す */
+.evrow .top{flex-wrap:wrap;}
+.evrow .badge{white-space:nowrap;}
 
 /* ===== panels / modals ===== */
 .overlay{
@@ -388,6 +395,7 @@ const BUILDING_DEFS = [
   <div class="tab active" id="tab-map">
     <div id="mapWrap">
       <div id="betaBanner">βテスト中：位置に関係なく全アイコンをタップできます</div>
+      <button class="badge" id="evInfoBtn" onclick="openEventInfo()">ℹ️ イベント時間</button>
       <span class="badge" id="geoBadge">📡 位置情報 取得中…</span>
       <div id="mapInner">
         <img src="campus.png" alt="豊田高専キャンパスマップ">
@@ -400,7 +408,6 @@ const BUILDING_DEFS = [
   <div class="tab" id="tab-gacha">
     <h2>人材ガシャ</h2>
     <p class="note">🪙バイトコインは5分ごとに1枚たまる（最大5枚）。バイトコインが無いときは💴100円でも回せるよ</p>
-    <p class="note" id="eventSched"></p>
     <div id="gachaMachine">🎰</div>
     <div id="coinTimer" class="note"></div>
     <button id="gachaBtn">🪙1枚で回す</button>
@@ -482,6 +489,8 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovHeal"><div class="sheet" id="healSheet"></div></div>
 <!-- 放校の確認 -->
 <div class="overlay" id="ovExpel"><div class="sheet" id="expelSheet"></div></div>
+<!-- イベント時間の案内（マップ左上のℹ️から開く） -->
+<div class="overlay" id="ovEvent"><div class="sheet" id="eventSheet"></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -902,14 +911,30 @@ function renderHdr(){
   $("yenBadge").textContent="💴"+myYen();
   $("koyoBadge").textContent="🍁"+(me.koyo||0);
 }
-// イベントバナー（開催中は全タブ共通でヘッダー下に表示）＋ガシャタブの開催予定
+// イベントバナー（開催中は全タブ共通でヘッダー下に表示）＋マップのℹ️ボタンの状態
 function renderEventBanner(){
   const el=$("eventBanner"); if(!el) return;
   const act=activeEvents();
   el.textContent=act.map(e=>`🎉 ${e.ico}${e.name} 開催中！ ${e.desc}（〜${e.end}）`).join(" ／ ");
   el.style.display=act.length?"block":"none";
-  const sc=$("eventSched");
-  if(sc) sc.innerHTML="🎉 毎日のイベント: "+EVENTS.map(e=>`${e.start}〜${e.end} ${e.ico}${e.name}（${e.desc}）`).join("　");
+  // 開催中はマップ左上のℹ️ボタンを光らせる。案内を開いていれば中身も更新
+  const ib=$("evInfoBtn");
+  if(ib) ib.classList.toggle("on", act.length>0);
+  if($("ovEvent")?.classList.contains("show")) renderEventSheet();
+}
+// イベント時間の案内（マップ左上のℹ️ボタンから開く）
+function openEventInfo(){ $("ovEvent").classList.add("show"); renderEventSheet(); }
+function renderEventSheet(){
+  const box=$("eventSheet"); if(!box) return;
+  const rows=[...EVENTS].sort((a,b)=>evMin(a.start)-evMin(b.start)).map(e=>{
+    const on=eventActive(e.id);
+    return `<div class="card evrow ${on?"evon":""}">
+      <div class="top"><span class="badge">${e.start}〜${e.end}</span><b>${e.ico}${e.name}</b>
+        ${on?'<span class="badge terb" style="margin-left:auto">開催中！</span>':""}</div>
+      <div class="stat">${e.desc}</div></div>`;
+  }).join("");
+  box.innerHTML=`<h2>🎉 毎日のイベント <button class="xbtn" onclick="closeOv('ovEvent')">閉じる</button></h2>
+    <div class="sub">毎日この時間になると自動で始まるよ（スマホの時計基準）</div>${rows}`;
 }
 setInterval(()=>{ if(me){ renderHdr(); renderGacha(); if(curB) renderBuilding(curB);} renderMap(); renderEventBanner(); },5000);
 setInterval(()=>{ if(me) renderGachaTimer(); },1000);
@@ -2019,6 +2044,7 @@ $("ovConfirm").onclick=e=>{ if(e.target.id==="ovConfirm") closeOv("ovConfirm"); 
 $("ovEquip").onclick=e=>{ if(e.target.id==="ovEquip") closeOv("ovEquip"); };
 $("ovHeal").onclick=e=>{ if(e.target.id==="ovHeal") closeOv("ovHeal"); };
 $("ovExpel").onclick=e=>{ if(e.target.id==="ovExpel") closeOv("ovExpel"); };
+$("ovEvent").onclick=e=>{ if(e.target.id==="ovEvent") closeOv("ovEvent"); };
 $("ovRename").onclick=e=>{ if(e.target.id==="ovRename") closeOv("ovRename"); };
 $("renameInput").onkeydown=e=>{ if(e.key==="Enter") saveRename(); };
 
