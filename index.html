@@ -30,11 +30,16 @@ button{font-family:inherit;}
   background:linear-gradient(180deg,#1a2144,#141a33); border-bottom:2px solid var(--line);
   flex:0 0 auto;
 }
-#hdr .title{font-size:14px; line-height:1.2;}
-#hdr .title small{color:var(--dim); font-size:10px; display:block;}
+#hdr .title{font-size:14px; line-height:1.2; min-width:0; overflow:hidden;}
+#hdr .title small{color:var(--dim); font-size:10px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 #hdr .spacer{flex:1;}
 .badge{border-radius:6px; padding:3px 8px; font-size:12px; border:1px solid var(--line); background:var(--panel);}
+/* 通貨が2種類になったぶん、ヘッダーのバッジは詰めて小さい画面でも収まるようにする */
+#hdr{gap:4px;}
+#hdr .badge{padding:3px 5px; font-size:11px; white-space:nowrap; flex:0 0 auto;}
+#walletBadge{cursor:pointer;}
 #coinBadge{color:var(--gold);}
+#yenBadge{color:#7ad14f;}
 #koyoBadge{color:var(--koyo);}
 #facBadge{font-weight:bold;}
 
@@ -261,6 +266,9 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
 .ucard.open .exp{transform:rotate(90deg);}
 .ucard .uactions{display:none;}
 .ucard.open .uactions{display:block;}
+/* 放校は取り返しがつかないので、回復・装備とは行を分けて赤く出す */
+.expelrow{display:flex; justify-content:flex-end; margin-top:6px;}
+.mini.danger{color:var(--danger); border-color:var(--danger);}
 
 /* ===== プリセットメンバーの一覧行（ステータスをパッと確認できる） ===== */
 .mrow{display:flex; align-items:center; gap:6px; font-size:12px; margin:4px 0; flex-wrap:wrap;}
@@ -369,7 +377,7 @@ const BUILDING_DEFS = [
   <div class="title">🍁 こうよう祭 陣取り<small id="myName"></small></div>
   <div class="spacer"></div>
   <span class="badge" id="facBadge">-</span>
-  <span class="badge" id="coinBadge">💰0</span>
+  <span class="badge" id="walletBadge"><span id="coinBadge">🪙0</span> <span id="yenBadge">💴0</span></span>
   <span class="badge" id="koyoBadge">🍁0</span>
   <button class="badge" id="logoutBtn" title="ログアウト">⏻</button>
 </div>
@@ -391,18 +399,18 @@ const BUILDING_DEFS = [
 
   <div class="tab" id="tab-gacha">
     <h2>人材ガシャ</h2>
-    <p class="note">100円玉は5分ごとに1枚たまる（自然回復は最大5枚・ミッション報酬なら5枚を超えて持てる）</p>
+    <p class="note">🪙バイトコインは5分ごとに1枚たまる（最大5枚）。バイトコインが無いときは💴100円でも回せるよ</p>
     <p class="note" id="eventSched"></p>
     <div id="gachaMachine">🎰</div>
     <div id="coinTimer" class="note"></div>
-    <button id="gachaBtn">💰1枚で回す</button>
+    <button id="gachaBtn">🪙1枚で回す</button>
     <p class="note" id="rateLine"></p>
     <div id="gachaResult"></div>
   </div>
 
   <div class="tab" id="tab-missions">
     <h2>📋 デイリーミッション</h2>
-    <p class="note">毎日0時リセット・報酬はコイン（ガシャの自然回復上限5枚を超えて持てる）</p>
+    <p class="note">毎日0時リセット・報酬は💴お金（ガシャは100円で回せる）</p>
     <div id="missionBox"></div>
   </div>
 
@@ -472,6 +480,8 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovEquip"><div class="sheet" id="equipSheet"></div></div>
 <!-- 回復ピッカー -->
 <div class="overlay" id="ovHeal"><div class="sheet" id="healSheet"></div></div>
+<!-- 放校の確認 -->
+<div class="overlay" id="ovExpel"><div class="sheet" id="expelSheet"></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -616,6 +626,17 @@ const skillDef = u => { const id=UNIT_SKILL[u?.name]; return id ? {id, ...SKILLS
 const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
 const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
 
+/* ---- お金まわり ----
+   通貨は2種類。
+   🪙バイトコイン(players/coins): 5分ごとに1枚たまる（最大COIN_MAX枚）。ガシャ1回＝1枚。
+   💴円(players/yen): ミッション報酬・バトルで削ったHP・放校の経費削減でもらえる。ガシャ1回＝YEN_PER_GACHA円。
+   ガシャはバイトコイン優先で、無いときだけ円を使う。 */
+const YEN_PER_GACHA = 100;  // 円で回すときのガシャ1回の値段
+const YEN_PER_DMG   = 10;   // バトルで削ったHP◯につき1円
+const YEN_EXPEL     = 10;   // 放校（経費削減）でもらえる円
+const myYen = () => me?.yen || 0;
+const yenStr = n => `💴${n}円`;
+
 // イベント時間（毎日この時間帯に自動発動。start/endは"HH:MM"・端末のローカル時刻基準）
 const EVENTS = [
   {id:"gachaA",   ico:"🎰", start:"08:30", end:"09:00", name:"モーニングガシャ",     desc:"Aランク排出率2倍"},
@@ -639,13 +660,13 @@ function eventActive(id){
 }
 const activeEvents = () => EVENTS.filter(e=>eventActive(e.id));
 
-// デイリーミッション（毎日0時リセット・報酬はコイン。COIN_MAXを超えて受け取れる）
+// デイリーミッション（毎日0時リセット・報酬は💴円。rewardは円の額）
 const MISSIONS = [
-  {id:"attack",  name:"⚔ バトルに3回出撃する",       goal:3, reward:2},
-  {id:"ration",  name:"🎁 配給を2回受け取る",         goal:2, reward:1},
-  {id:"gacha",   name:"🎰 ガシャを1回まわす",         goal:1, reward:1},
-  {id:"upgrade", name:"⬆ 建物を1回強化する",          goal:1, reward:1},
-  {id:"defend",  name:"🛡 引きこもりを1体配置する",   goal:1, reward:1},
+  {id:"attack",  name:"⚔ バトルに3回出撃する",       goal:3, reward:200},
+  {id:"ration",  name:"🎁 配給を2回受け取る",         goal:2, reward:100},
+  {id:"gacha",   name:"🎰 ガシャを1回まわす",         goal:1, reward:100},
+  {id:"upgrade", name:"⬆ 建物を1回強化する",          goal:1, reward:100},
+  {id:"defend",  name:"🛡 引きこもりを1体配置する",   goal:1, reward:100},
 ];
 
 /* =============== 初期化 =============== */
@@ -795,7 +816,7 @@ function showReg(){
     if(!configured){ alert("先にfirebaseConfigを設定してください（READMEを見てね）"); return; }
     const starter = makeUnit(DEPT_HEADS[regFac], "A");
     const p={ name:$("regName").value.trim(), faction:regFac, coins:5, coinAnchor:Date.now(),
-      koyo:0, materials:{neji:0,kairo:0,code:0,mizu:0,mokei:0},
+      yen:0, koyo:0, materials:{neji:0,kairo:0,code:0,mizu:0,mokei:0},
       items:{enadori:6,pan:0,aset:0}, units:{[starter.id]:starter}, createdAt:Date.now() };
     const up={};
     up["players/"+PID]=p;
@@ -816,6 +837,7 @@ function subscribe(){
     // 開いている装備／回復ピッカーも最新の所持数・HPで描き直す
     if($("ovEquip").classList.contains("show")) renderEquipPicker();
     if($("ovHeal").classList.contains("show")) renderHealPicker();
+    if($("ovExpel").classList.contains("show")) renderExpelSheet();
   });
   db.ref("buildings").on("value",s=>{
     buildings=s.val()||{};
@@ -860,10 +882,10 @@ function multiplier(fac){
   return Math.round(m*100)/100;
 }
 
-/* =============== ヘッダー・コイン =============== */
+/* =============== ヘッダー・バイトコイン =============== */
 function coinState(p){
   let coins=p.coins??0, anchor=p.coinAnchor??Date.now();
-  // 自然回復の上限はCOIN_MAXだが、ミッション報酬で上限を超えて持てる（超過分は減らさない）
+  // 🪙バイトコインは5分ごとに1枚たまる（上限COIN_MAX枚でストップ）
   if(coins>=COIN_MAX) return {coins, anchor:Date.now(), next:0};
   const gained=Math.floor((Date.now()-anchor)/COIN_MS);
   const nc=Math.min(COIN_MAX, coins+gained);
@@ -876,7 +898,8 @@ function renderHdr(){
   $("myName").textContent=me.name+" さん";
   $("facBadge").textContent=f.short+"科";
   $("facBadge").style.background=f.color; $("facBadge").style.color=f.tc;
-  $("coinBadge").textContent="💰"+coinState(me).coins;
+  $("coinBadge").textContent="🪙"+coinState(me).coins;
+  $("yenBadge").textContent="💴"+myYen();
   $("koyoBadge").textContent="🍁"+(me.koyo||0);
 }
 // イベントバナー（開催中は全タブ共通でヘッダー下に表示）＋ガシャタブの開催予定
@@ -1316,6 +1339,7 @@ function runBattle(bid,b){
   const ter=terrainOf(bid);
   const tm=e=>terMult(e,ter);
   let mats=0, kills=0, buildingHits=0, captured=false;
+  let dmgDealt=0; // 攻撃側が実際に削ったHPの合計（防衛人材＋建物）→ お金になる
   const koyoGain={}; // 防衛側プレイヤーへのこうよう
   const evK=eventActive("defkoyo2")?EVENT_DEF_KOYO_MULT:1; // 🛡深夜の防衛戦
 
@@ -1338,7 +1362,9 @@ function runBattle(bid,b){
       if(tgt){
         const mult=elmMult(u.elm,tgt.elm), crit=skCritRoll(u);
         const raw=Math.max(1,Math.round((u.bAtk*tm(u.elm)*skAtkMult(u,A,r)-tgt.bDef*tm(tgt.elm)*skDefMult(tgt,D))*mult*crit));
+        const hpBefore=tgt.hp;
         const hit=skHit(tgt,raw);
+        dmgDealt+=hpBefore-tgt.hp; // 実際に削れたぶんだけ数える（回避・踏みとどまりを反映）
         log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(u.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
         if(tgt.hp<=0){ kills++; mats+=2; u.skKills=(u.skKills||0)+1; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
       }else{
@@ -1346,12 +1372,15 @@ function runBattle(bid,b){
         const dmg=Math.max(1,Math.round((u.bAtk*tm(u.elm)*skAtkMult(u,A,r)-bDef)*crit));
         const cr=crit>1?"（💥クリティカル！）":"";
         buildingHits++; mats+=1;
+        const hpBefore=bhp;
         if(b.type==="facility"){
           bhp-=dmg;
+          dmgDealt+=hpBefore-Math.max(0,bhp);
           log.push({c:"atk",t:`${u.name} → 建物に ${dmg}ダメージ${cr}`});
           if(bhp<=0){ captured=true; break; }
         }else{
           bhp=Math.max(1,bhp-dmg); // 拠点HPは0にならない
+          dmgDealt+=hpBefore-bhp;
           log.push({c:"atk",t:`${u.name} → 拠点に ${dmg}ダメージ${cr}`});
         }
       }
@@ -1408,6 +1437,9 @@ function runBattle(bid,b){
     eqDrop=ks[Math.floor(Math.random()*ks.length)];
     log.push({c:"sys",t:`🎁 レアドロップ！ ${EQUIPS[eqDrop].name}（${EQUIPS[eqDrop].desc}）を手に入れた！${evEq>1?"（🧦落とし物タイム！）":""}`});
   }
+  // バトルの報酬金（削ったHPに比例。YEN_PER_DMGごとに1円）
+  const yenGain=Math.floor(dmgDealt/YEN_PER_DMG);
+  log.push({c:"sys",t:`💴 削ったHP ${dmgDealt} → お金 +${yenGain}円（HP${YEN_PER_DMG}につき1円）`});
   if(captured) log.push({c:"sys",t:`🚩 ${b.name} を ${FACTIONS[me.faction].short}科が制圧！（HP全回復）`});
 
   /* --- 書き込み --- */
@@ -1448,6 +1480,7 @@ function runBattle(bid,b){
   if(ramenHeals.length) log.push({c:"sys",t:`🍜 カップ麺でHP回復: ${ramenHeals.join(" ")}`});
   Object.entries(drop).forEach(([k,v])=>{ up[`players/${PID}/materials/${k}`]=INC(v); });
   if(eqDrop) up[`players/${PID}/equips/${eqDrop}`]=INC(1);
+  if(yenGain>0) up[`players/${PID}/yen`]=INC(yenGain);
   Object.entries(koyoGain).forEach(([pid,v])=>{
     up[`players/${pid}/koyo`]=INC(v);
     up[`rankings/${pid}/koyo`]=INC(v);
@@ -1509,34 +1542,49 @@ function makeUnit(base, rank){
     name:base.name, rank, hp, maxHp:hp, atk:Math.round(base.atk*v()), def:Math.round(base.def*v()),
     elm:ELM_KEYS[Math.floor(Math.random()*ELM_KEYS.length)], defendingAt:null };
 }
+// ガシャ1回ぶんの支払い方法を決める（🪙バイトコインが優先。無ければ💴100円）
+function gachaPay(){
+  const st=coinState(me);
+  if(st.coins>=1) return {kind:"coin", st};
+  if(myYen()>=YEN_PER_GACHA) return {kind:"yen", st};
+  return {kind:null, st};
+}
 function renderGacha(){
   if(!me) return;
-  const st=coinState(me);
-  $("gachaBtn").disabled = st.coins<1;
+  const pay=gachaPay();
+  $("gachaBtn").disabled = !pay.kind;
+  $("gachaBtn").textContent = pay.kind==="yen" ? `💴${YEN_PER_GACHA}円で回す` : "🪙バイトコイン1枚で回す";
   renderGachaTimer();
   renderMissions();
 }
 function renderGachaTimer(){
   if(!me) return;
   const st=coinState(me);
-  if(st.coins>=COIN_MAX) $("coinTimer").textContent=`💰${st.coins}枚（満タン・自然回復ストップ中）`;
+  const wallet=`　／　${yenStr(myYen())}`;
+  if(st.coins>=COIN_MAX) $("coinTimer").textContent=`🪙${st.coins}枚（満タン・自然回復ストップ中）${wallet}`;
   else{
     const s=Math.ceil(st.next/1000);
-    $("coinTimer").textContent=`💰${st.coins}枚 ／ 次の100円玉まで ${Math.floor(s/60)}分${s%60}秒`;
+    $("coinTimer").textContent=`🪙${st.coins}枚 ／ 次のバイトコインまで ${Math.floor(s/60)}分${s%60}秒${wallet}`;
   }
 }
 $("gachaBtn").onclick=()=>{
-  const st=coinState(me);
-  if(st.coins<1) return;
+  const pay=gachaPay();
+  if(!pay.kind) return;
+  const st=pay.st;
   const u=rollUnit();
   const up={};
-  up[`players/${PID}/coins`]=st.coins-1;
-  up[`players/${PID}/coinAnchor`]= st.coins>=COIN_MAX ? Date.now() : st.anchor;
+  if(pay.kind==="coin"){
+    up[`players/${PID}/coins`]=st.coins-1;
+    up[`players/${PID}/coinAnchor`]= st.coins>=COIN_MAX ? Date.now() : st.anchor;
+  }else{
+    up[`players/${PID}/yen`]=INC(-YEN_PER_GACHA);
+  }
   up[`players/${PID}/units/${u.id}`]=u;
   $("gachaMachine").classList.add("spin");
   $("gachaResult").innerHTML="";
   db.ref().update(up).then(()=>{
     missionProg("gacha");
+    toast(pay.kind==="coin"?"🪙バイトコインを1枚使った":`💴${YEN_PER_GACHA}円を使った`);
     setTimeout(()=>{
       $("gachaMachine").classList.remove("spin");
       const sk=skillDef(u);
@@ -1571,19 +1619,17 @@ function missionProg(id, n){
   const w = (me.missions?.date===m.date)
     ? db.ref(`players/${PID}/missions/prog/${id}`).set(nv)
     : db.ref(`players/${PID}/missions`).set({date:m.date, prog:{[id]:nv}, claimed:{}});
-  w.then(()=>{ if(nv>=def.goal) toast(`✅ ミッション達成！「${def.name}」→ ミッションタブで💰${def.reward}を受け取ろう`,3000); }).catch(dbErr);
+  w.then(()=>{ if(nv>=def.goal) toast(`✅ ミッション達成！「${def.name}」→ ミッションタブで${yenStr(def.reward)}を受け取ろう`,3000); }).catch(dbErr);
 }
 function claimMission(id){
   if(!me) return;
   const def=MISSIONS.find(x=>x.id===id); if(!def) return;
   const m=myMissions();
   if(((m.prog||{})[id]||0)<def.goal || (m.claimed||{})[id]) return;
-  const st=coinState(me);
   const up={};
-  up[`players/${PID}/coins`]=st.coins+def.reward;
-  up[`players/${PID}/coinAnchor`]=st.anchor;
+  up[`players/${PID}/yen`]=INC(def.reward);
   up[`players/${PID}/missions/claimed/${id}`]=true; // 達成済み＝今日のmissionsノードは必ず存在する
-  db.ref().update(up).then(()=>toast(`💰コイン+${def.reward}！`)).catch(dbErr);
+  db.ref().update(up).then(()=>toast(`💴お金+${def.reward}円！`)).catch(dbErr);
 }
 function renderMissions(){
   const box=$("missionBox"); if(!box||!me) return;
@@ -1593,9 +1639,9 @@ function renderMissions(){
     const cur=Math.min(def.goal,(m.prog||{})[def.id]||0);
     const done=cur>=def.goal, claimed=(m.claimed||{})[def.id];
     html+=`<div class="card mcard ${claimed?"mdone":""}">
-      <div class="top"><b>${def.name}</b><span class="badge" style="margin-left:auto; color:var(--gold)">💰${def.reward}</span></div>
+      <div class="top"><b>${def.name}</b><span class="badge" style="margin-left:auto; color:#7ad14f">💴${def.reward}円</span></div>
       <div class="mbar"><i style="width:${cur/def.goal*100}%"></i></div>
-      <div class="stat">${cur} / ${def.goal}${claimed?"　✔ 受け取り済み":done?`　<button class="mini sel" onclick="claimMission('${def.id}')">💰 受け取る</button>`:""}</div>
+      <div class="stat">${cur} / ${def.goal}${claimed?"　✔ 受け取り済み":done?`　<button class="mini sel" onclick="claimMission('${def.id}')">💴 受け取る</button>`:""}</div>
     </div>`;
   });
   box.innerHTML=html;
@@ -1774,6 +1820,7 @@ function renderUnits(){
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
     const eqBtn=`<button class="mini" onclick="openEquipPicker('${id}')">🎒 ${u.equip?"装備を変える":"装備する"}</button>`;
     const healBtn=`<button class="mini" ${u.hp>=u.maxHp?"disabled":""} onclick="openHealPicker('${id}')">💊 回復する</button>`;
+    const expelBtn=`<div class="expelrow"><button class="mini danger" onclick="openExpel('${id}')">🚪 放校する</button></div>`;
     // 編集中はメンバー選択が主目的。それ以外は右端にタップ開閉の目印を出す
     const rightTop=presetEdit!==null
       ? `<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" data-pre="${id}" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`
@@ -1786,8 +1833,8 @@ function renderUnits(){
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}</div>
       ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
-      <div class="uactions">${u.defendingAt?'<div class="note">回復・装備変更するには呼び戻してね</div>':
-        `<div class="row" style="margin:6px 0 0">${healBtn}${eqBtn}</div>`}</div>`;
+      <div class="uactions">${u.defendingAt?'<div class="note">回復・装備変更・放校するには呼び戻してね</div>':
+        `<div class="row" style="margin:6px 0 0">${healBtn}${eqBtn}</div>${expelBtn}`}</div>`;
     wrap.appendChild(d);
   });
 }
@@ -1882,6 +1929,54 @@ function pickHeal(ik){
   useItem(healPickUid, ik); // 使用後はsubscribeの再描画でピッカーも更新される
 }
 
+/* ---- 放校（人材を手放す。装備は返却され、経費削減でお金がもらえる） ---- */
+let expelUid=null;
+function openExpel(uid){
+  const u=me.units?.[uid]; if(!u) return;
+  if(u.defendingAt){ toast("防衛中は放校できないよ。呼び戻してね"); return; }
+  expelUid=uid;
+  $("ovExpel").classList.add("show");
+  renderExpelSheet();
+}
+function renderExpelSheet(){
+  const u=me.units?.[expelUid]; if(!u){ closeOv("ovExpel"); return; }
+  const eq=EQUIPS[u.equip], sk=skillDef(u);
+  $("expelSheet").innerHTML=`<h2>🚪 放校する？ <button class="xbtn" onclick="closeOv('ovExpel')">閉じる</button></h2>
+    <div class="sub">放校した人材は二度と戻ってこないよ。よく考えてね。</div>
+    <div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${eq?`<span class="badge">${eq.name}</span>`:""}<b>${esc(u.name)}</b></div>
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${eqAtk(u)}　守 ${eqDef(u)}</div>
+      ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}</div>
+    <div class="note">・${eq?`装備していた ${eq.name} は返却されるよ`:"装備はしていない"}</div>
+    <div class="note">・経費削減として 💴${YEN_EXPEL}円 もらえるよ</div>
+    <div class="row">
+      <button class="bigbtn" onclick="closeOv('ovExpel')">やめる</button>
+      <button class="bigbtn" style="border-color:var(--danger); color:var(--danger)" onclick="doExpel()">🚪 放校する</button>
+    </div>`;
+}
+function doExpel(){
+  const uid=expelUid, u=me.units?.[uid];
+  if(!u) return;
+  if(u.defendingAt){ toast("防衛中は放校できないよ。呼び戻してね"); return; }
+  const eq=EQUIPS[u.equip];
+  const up={};
+  // 人材を消せば装備の「使用中」カウントが減るので、装備は自動的に手持ちへ返却される
+  up[`players/${PID}/units/${uid}`]=null;
+  up[`players/${PID}/yen`]=INC(YEN_EXPEL);
+  // 編成プリセットからも外しておく（いない人材のIDを残さない）
+  Object.entries(me.presets||{}).forEach(([n,ids])=>{
+    const arr=Object.values(ids||{});
+    if(!arr.includes(uid)) return;
+    const rest=arr.filter(x=>x!==uid);
+    up[`players/${PID}/presets/${n}`]=rest.length?rest:null;
+  });
+  expelUid=null;
+  presetSel.delete(uid); selUnits.delete(uid);
+  closeOv("ovExpel");
+  db.ref().update(up).then(()=>
+    toast(`🚪 ${u.name} を放校した。経費削減で💴${YEN_EXPEL}円${eq?`／${eq.name}が返ってきた`:""}`,3500)
+  ).catch(dbErr);
+}
+
 /* =============== ランキング =============== */
 function renderRank(){
   if(!$("facRank")) return;
@@ -1908,9 +2003,8 @@ function switchTab(name){
   if(name==="rank") fetchRank();
 }
 document.querySelectorAll("#bar button").forEach(b=>{ b.onclick=()=>switchTab(b.dataset.tab); });
-// ヘッダーの💰/🍁からも関連タブへ飛べる
-$("coinBadge").style.cursor="pointer";
-$("coinBadge").onclick=()=>switchTab("gacha");
+// ヘッダーの🪙💴/🍁からも関連タブへ飛べる
+$("walletBadge").onclick=()=>switchTab("gacha");
 $("koyoBadge").style.cursor="pointer";
 $("koyoBadge").onclick=()=>switchTab("rank");
 
@@ -1924,6 +2018,7 @@ $("mapLegend").innerHTML=Object.entries(FACTIONS).map(([k,f])=>
 $("ovConfirm").onclick=e=>{ if(e.target.id==="ovConfirm") closeOv("ovConfirm"); };
 $("ovEquip").onclick=e=>{ if(e.target.id==="ovEquip") closeOv("ovEquip"); };
 $("ovHeal").onclick=e=>{ if(e.target.id==="ovHeal") closeOv("ovHeal"); };
+$("ovExpel").onclick=e=>{ if(e.target.id==="ovExpel") closeOv("ovExpel"); };
 $("ovRename").onclick=e=>{ if(e.target.id==="ovRename") closeOv("ovRename"); };
 $("renameInput").onkeydown=e=>{ if(e.key==="Enter") saveRename(); };
 
