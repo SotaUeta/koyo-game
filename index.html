@@ -642,7 +642,9 @@ const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
    ガシャはバイトコイン優先で、無いときだけ円を使う。 */
 const YEN_PER_GACHA = 100;  // 円で回すときのガシャ1回の値段
 const YEN_PER_DMG   = 10;   // バトルで削ったHP◯につき1円
-const YEN_EXPEL     = 10;   // 放校（経費削減）でもらえる円
+// 放校（経費削減）でもらえる円。ランクが高い人材ほど多い
+const YEN_EXPEL = {F:10, C:30, B:40, A:50};
+const expelYen = u => YEN_EXPEL[u?.rank] ?? YEN_EXPEL.F;
 const myYen = () => me?.yen || 0;
 const yenStr = n => `💴${n}円`;
 
@@ -1845,7 +1847,7 @@ function renderUnits(){
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
     const eqBtn=`<button class="mini" onclick="openEquipPicker('${id}')">🎒 ${u.equip?"装備を変える":"装備する"}</button>`;
     const healBtn=`<button class="mini" ${u.hp>=u.maxHp?"disabled":""} onclick="openHealPicker('${id}')">💊 回復する</button>`;
-    const expelBtn=`<div class="expelrow"><button class="mini danger" onclick="openExpel('${id}')">🚪 放校する</button></div>`;
+    const expelBtn=`<div class="expelrow"><button class="mini danger" onclick="openExpel('${id}')">🚪 放校する（💴${expelYen(u)}円）</button></div>`;
     // 編集中はメンバー選択が主目的。それ以外は右端にタップ開閉の目印を出す
     const rightTop=presetEdit!==null
       ? `<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" data-pre="${id}" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`
@@ -1972,7 +1974,7 @@ function renderExpelSheet(){
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${eqAtk(u)}　守 ${eqDef(u)}</div>
       ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}</div>
     <div class="note">・${eq?`装備していた ${eq.name} は返却されるよ`:"装備はしていない"}</div>
-    <div class="note">・経費削減として 💴${YEN_EXPEL}円 もらえるよ</div>
+    <div class="note">・経費削減として 💴${expelYen(u)}円 もらえるよ（${u.rank}ランク）</div>
     <div class="row">
       <button class="bigbtn" onclick="closeOv('ovExpel')">やめる</button>
       <button class="bigbtn" style="border-color:var(--danger); color:var(--danger)" onclick="doExpel()">🚪 放校する</button>
@@ -1982,11 +1984,11 @@ function doExpel(){
   const uid=expelUid, u=me.units?.[uid];
   if(!u) return;
   if(u.defendingAt){ toast("防衛中は放校できないよ。呼び戻してね"); return; }
-  const eq=EQUIPS[u.equip];
+  const eq=EQUIPS[u.equip], gain=expelYen(u);
   const up={};
   // 人材を消せば装備の「使用中」カウントが減るので、装備は自動的に手持ちへ返却される
   up[`players/${PID}/units/${uid}`]=null;
-  up[`players/${PID}/yen`]=INC(YEN_EXPEL);
+  up[`players/${PID}/yen`]=INC(gain);
   // 編成プリセットからも外しておく（いない人材のIDを残さない）
   Object.entries(me.presets||{}).forEach(([n,ids])=>{
     const arr=Object.values(ids||{});
@@ -1998,7 +2000,7 @@ function doExpel(){
   presetSel.delete(uid); selUnits.delete(uid);
   closeOv("ovExpel");
   db.ref().update(up).then(()=>
-    toast(`🚪 ${u.name} を放校した。経費削減で💴${YEN_EXPEL}円${eq?`／${eq.name}が返ってきた`:""}`,3500)
+    toast(`🚪 ${u.name} を放校した。経費削減で💴${gain}円${eq?`／${eq.name}が返ってきた`:""}`,3500)
   ).catch(dbErr);
 }
 
