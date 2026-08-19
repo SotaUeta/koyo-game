@@ -119,6 +119,13 @@ button{font-family:inherit;}
   background:#5a2bd0cc; padding:4px; letter-spacing:1px;
 }
 #geoBadge{position:sticky; top:24px; z-index:5; float:right; margin:6px; font-size:10px;}
+/* マップ左上のイベント案内ボタン（開催中は金色に光る） */
+#evInfoBtn{position:sticky; top:24px; z-index:5; float:left; margin:6px; font-size:10px; cursor:pointer;}
+#evInfoBtn.on{color:var(--gold); border-color:var(--gold); animation:evglow 1.2s ease-in-out infinite alternate;}
+.evrow.evon{border-color:var(--gold);}
+/* 時間と「開催中！」は折り返さず、入らないときは行ごと折り返す */
+.evrow .top{flex-wrap:wrap;}
+.evrow .badge{white-space:nowrap;}
 
 /* ===== panels / modals ===== */
 .overlay{
@@ -388,6 +395,7 @@ const BUILDING_DEFS = [
   <div class="tab active" id="tab-map">
     <div id="mapWrap">
       <div id="betaBanner">βテスト中：位置に関係なく全アイコンをタップできます</div>
+      <button class="badge" id="evInfoBtn" onclick="openEventInfo()">ℹ️ イベント時間</button>
       <span class="badge" id="geoBadge">📡 位置情報 取得中…</span>
       <div id="mapInner">
         <img src="campus.png" alt="豊田高専キャンパスマップ">
@@ -400,7 +408,6 @@ const BUILDING_DEFS = [
   <div class="tab" id="tab-gacha">
     <h2>人材ガシャ</h2>
     <p class="note">🪙バイトコインは5分ごとに1枚たまる（最大5枚）。バイトコインが無いときは💴100円でも回せるよ</p>
-    <p class="note" id="eventSched"></p>
     <div id="gachaMachine">🎰</div>
     <div id="coinTimer" class="note"></div>
     <button id="gachaBtn">🪙1枚で回す</button>
@@ -482,6 +489,8 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovHeal"><div class="sheet" id="healSheet"></div></div>
 <!-- 放校の確認 -->
 <div class="overlay" id="ovExpel"><div class="sheet" id="expelSheet"></div></div>
+<!-- イベント時間の案内（マップ左上のℹ️から開く） -->
+<div class="overlay" id="ovEvent"><div class="sheet" id="eventSheet"></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -633,7 +642,9 @@ const COIN_MS = 5*60*1000, COIN_MAX = 5, RATION_MS = 60*60*1000, MAX_LV = 10;
    ガシャはバイトコイン優先で、無いときだけ円を使う。 */
 const YEN_PER_GACHA = 100;  // 円で回すときのガシャ1回の値段
 const YEN_PER_DMG   = 10;   // バトルで削ったHP◯につき1円
-const YEN_EXPEL     = 10;   // 放校（経費削減）でもらえる円
+// 放校（経費削減）でもらえる円。ランクが高い人材ほど多い
+const YEN_EXPEL = {F:10, C:30, B:40, A:50};
+const expelYen = u => YEN_EXPEL[u?.rank] ?? YEN_EXPEL.F;
 const myYen = () => me?.yen || 0;
 const yenStr = n => `💴${n}円`;
 
@@ -902,14 +913,30 @@ function renderHdr(){
   $("yenBadge").textContent="💴"+myYen();
   $("koyoBadge").textContent="🍁"+(me.koyo||0);
 }
-// イベントバナー（開催中は全タブ共通でヘッダー下に表示）＋ガシャタブの開催予定
+// イベントバナー（開催中は全タブ共通でヘッダー下に表示）＋マップのℹ️ボタンの状態
 function renderEventBanner(){
   const el=$("eventBanner"); if(!el) return;
   const act=activeEvents();
   el.textContent=act.map(e=>`🎉 ${e.ico}${e.name} 開催中！ ${e.desc}（〜${e.end}）`).join(" ／ ");
   el.style.display=act.length?"block":"none";
-  const sc=$("eventSched");
-  if(sc) sc.innerHTML="🎉 毎日のイベント: "+EVENTS.map(e=>`${e.start}〜${e.end} ${e.ico}${e.name}（${e.desc}）`).join("　");
+  // 開催中はマップ左上のℹ️ボタンを光らせる。案内を開いていれば中身も更新
+  const ib=$("evInfoBtn");
+  if(ib) ib.classList.toggle("on", act.length>0);
+  if($("ovEvent")?.classList.contains("show")) renderEventSheet();
+}
+// イベント時間の案内（マップ左上のℹ️ボタンから開く）
+function openEventInfo(){ $("ovEvent").classList.add("show"); renderEventSheet(); }
+function renderEventSheet(){
+  const box=$("eventSheet"); if(!box) return;
+  const rows=[...EVENTS].sort((a,b)=>evMin(a.start)-evMin(b.start)).map(e=>{
+    const on=eventActive(e.id);
+    return `<div class="card evrow ${on?"evon":""}">
+      <div class="top"><span class="badge">${e.start}〜${e.end}</span><b>${e.ico}${e.name}</b>
+        ${on?'<span class="badge terb" style="margin-left:auto">開催中！</span>':""}</div>
+      <div class="stat">${e.desc}</div></div>`;
+  }).join("");
+  box.innerHTML=`<h2>🎉 毎日のイベント <button class="xbtn" onclick="closeOv('ovEvent')">閉じる</button></h2>
+    <div class="sub">毎日この時間になると自動で始まるよ（スマホの時計基準）</div>${rows}`;
 }
 setInterval(()=>{ if(me){ renderHdr(); renderGacha(); if(curB) renderBuilding(curB);} renderMap(); renderEventBanner(); },5000);
 setInterval(()=>{ if(me) renderGachaTimer(); },1000);
@@ -1820,7 +1847,7 @@ function renderUnits(){
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
     const eqBtn=`<button class="mini" onclick="openEquipPicker('${id}')">🎒 ${u.equip?"装備を変える":"装備する"}</button>`;
     const healBtn=`<button class="mini" ${u.hp>=u.maxHp?"disabled":""} onclick="openHealPicker('${id}')">💊 回復する</button>`;
-    const expelBtn=`<div class="expelrow"><button class="mini danger" onclick="openExpel('${id}')">🚪 放校する</button></div>`;
+    const expelBtn=`<div class="expelrow"><button class="mini danger" onclick="openExpel('${id}')">🚪 放校する（💴${expelYen(u)}円）</button></div>`;
     // 編集中はメンバー選択が主目的。それ以外は右端にタップ開閉の目印を出す
     const rightTop=presetEdit!==null
       ? `<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" data-pre="${id}" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`
@@ -1947,7 +1974,7 @@ function renderExpelSheet(){
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${eqAtk(u)}　守 ${eqDef(u)}</div>
       ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}</div>
     <div class="note">・${eq?`装備していた ${eq.name} は返却されるよ`:"装備はしていない"}</div>
-    <div class="note">・経費削減として 💴${YEN_EXPEL}円 もらえるよ</div>
+    <div class="note">・経費削減として 💴${expelYen(u)}円 もらえるよ（${u.rank}ランク）</div>
     <div class="row">
       <button class="bigbtn" onclick="closeOv('ovExpel')">やめる</button>
       <button class="bigbtn" style="border-color:var(--danger); color:var(--danger)" onclick="doExpel()">🚪 放校する</button>
@@ -1957,11 +1984,11 @@ function doExpel(){
   const uid=expelUid, u=me.units?.[uid];
   if(!u) return;
   if(u.defendingAt){ toast("防衛中は放校できないよ。呼び戻してね"); return; }
-  const eq=EQUIPS[u.equip];
+  const eq=EQUIPS[u.equip], gain=expelYen(u);
   const up={};
   // 人材を消せば装備の「使用中」カウントが減るので、装備は自動的に手持ちへ返却される
   up[`players/${PID}/units/${uid}`]=null;
-  up[`players/${PID}/yen`]=INC(YEN_EXPEL);
+  up[`players/${PID}/yen`]=INC(gain);
   // 編成プリセットからも外しておく（いない人材のIDを残さない）
   Object.entries(me.presets||{}).forEach(([n,ids])=>{
     const arr=Object.values(ids||{});
@@ -1973,7 +2000,7 @@ function doExpel(){
   presetSel.delete(uid); selUnits.delete(uid);
   closeOv("ovExpel");
   db.ref().update(up).then(()=>
-    toast(`🚪 ${u.name} を放校した。経費削減で💴${YEN_EXPEL}円${eq?`／${eq.name}が返ってきた`:""}`,3500)
+    toast(`🚪 ${u.name} を放校した。経費削減で💴${gain}円${eq?`／${eq.name}が返ってきた`:""}`,3500)
   ).catch(dbErr);
 }
 
@@ -2019,6 +2046,7 @@ $("ovConfirm").onclick=e=>{ if(e.target.id==="ovConfirm") closeOv("ovConfirm"); 
 $("ovEquip").onclick=e=>{ if(e.target.id==="ovEquip") closeOv("ovEquip"); };
 $("ovHeal").onclick=e=>{ if(e.target.id==="ovHeal") closeOv("ovHeal"); };
 $("ovExpel").onclick=e=>{ if(e.target.id==="ovExpel") closeOv("ovExpel"); };
+$("ovEvent").onclick=e=>{ if(e.target.id==="ovEvent") closeOv("ovEvent"); };
 $("ovRename").onclick=e=>{ if(e.target.id==="ovRename") closeOv("ovRename"); };
 $("renameInput").onkeydown=e=>{ if(e.key==="Enter") saveRename(); };
 
