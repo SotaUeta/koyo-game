@@ -306,6 +306,23 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
 .mrow .stat{font-size:12px;}
 .sktap{cursor:pointer;}
 
+/* ===== 編成プリセットの横スクロール帯 ===== */
+/* 縦に積むと人材リストまでのスクロールが長くなるので、横並びにして1枚ぶんの高さに収める */
+#presetStrip{
+  display:flex; gap:8px; overflow-x:auto; padding:2px 0 8px;
+  -webkit-overflow-scrolling:touch;
+}
+.presetCard{flex:0 0 min(260px,78vw); margin:0;}
+.presetCard .top{gap:4px;}
+/* 長い名前でもボタンを押し出さないよう、名前だけ省略表示にする */
+.presetCard .top b{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.presetCard .mini{padding:5px 8px; font-size:12px; flex:0 0 auto;}
+/* 幅が狭いので、メンバー行は「名前」「ステータス」のきっかり2行に収める */
+.presetCard .mrow{gap:4px; margin:3px 0; font-size:11px; flex-wrap:wrap;}
+.presetCard .mrow > *{flex:0 0 auto;}
+.presetCard .mrow b{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.presetCard .mrow .stat{flex:1 0 100%; font-size:11px;}
+
 /* ===== 選択中メンバーのチップ（タップで外せる） ===== */
 .selchips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0;}
 .chip{
@@ -1767,7 +1784,7 @@ function renderMissions(){
 }
 
 /* =============== 編成プリセット =============== */
-const PRESET_MAX=3;
+const PRESET_MAX=6;
 let presetEdit=null, presetSel=new Set(), renameN=null;
 function getPreset(n){ const ids=(me.presets||[])[n]; return ids?Object.values(ids):null; }
 // 保存済みの名前。未設定なら「プリセットN」を返す
@@ -1781,8 +1798,10 @@ function presetMemberRows(ids){
     const u=me.units[id], sk=skillDef(u);
     const st=u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>'
       :(u.defendingAt?'<span class="badge">🛡防衛中</span>':"");
+    // ステータスだけ2行目に落とすので、スキル・状態は名前と同じ1行目に置く
     return `<div class="mrow"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?ELEMENTS[u.elm].ico:""}<b>${esc(u.name)}</b>
-      <span class="stat">HP${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</span>${sk?`<span class="sktap" onclick="showUnitSkill('${id}')">✨${sk.ico}</span>`:""}${st}</div>`;
+      ${sk?`<span class="sktap" onclick="showUnitSkill('${id}')">✨${sk.ico}</span>`:""}${st}
+      <span class="stat">HP${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</span></div>`;
   }).join("");
 }
 function showUnitSkill(uid){
@@ -1791,21 +1810,26 @@ function showUnitSkill(uid){
 }
 function renderPresets(){
   const box=$("presetBox"); if(!box||!me) return;
-  let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">名前タップで変更できるよ</span></h3>`;
+  let cards="";
   for(let n=0;n<PRESET_MAX;n++){
     if(presetEdit===n){
-      html+=`<div class="card"><div class="top"><b>${esc(presetName(n))} を編集中</b></div>
+      cards+=`<div class="card presetCard"><div class="top"><b>${esc(presetName(n))} を編集中</b></div>
         <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。保存は画面上部の金色バーから</div></div>`;
       continue;
     }
     const ids=getPreset(n);
     const rows=ids?presetMemberRows(ids):"";
-    html+=`<div class="card"><div class="top"><b class="renameable" onclick="openRename(${n})">${esc(presetName(n))} ✎</b>
-      <button class="mini" style="margin-left:auto" ${presetEdit!==null?"disabled":""} onclick="editPreset(${n})">${ids?"編集":"作成"}</button>
+    cards+=`<div class="card presetCard"><div class="top"><b class="renameable" onclick="openRename(${n})">${esc(presetName(n))} ✎</b>
+      <button class="mini" ${presetEdit!==null?"disabled":""} onclick="editPreset(${n})">${ids?"編集":"作成"}</button>
       ${ids?`<button class="mini" ${presetEdit!==null?"disabled":""} onclick="delPreset(${n})">削除</button>`:""}</div>
       ${ids?(rows||'<div class="note">（メンバーがいない）</div>'):'<div class="note">未設定</div>'}</div>`;
   }
-  box.innerHTML=html;
+  // 再描画（購読の更新など）で横スクロールの位置が戻らないよう保持する
+  const sx=$("presetStrip")?.scrollLeft||0;
+  box.innerHTML=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">よこスクロール・名前タップで変更</span></h3>
+    <div id="presetStrip">${cards}</div>`;
+  const strip=$("presetStrip");
+  if(strip) strip.scrollLeft=sx;
   renderPreEditBar();
 }
 // 編集中だけ表示される固定バー（保存ボタンと選択メンバーが常に見える・名前は名前部分のタップで変更）
@@ -1864,10 +1888,11 @@ function savePreset(){
   renderUnits();
 }
 function delPreset(n){
+  const nm=presetName(n); // 消すと既定名に戻るので、先に控えておく
   const up={};
   up[`players/${PID}/presets/${n}`]=null;
   up[`players/${PID}/presetNames/${n}`]=null; // 名前も一緒に消す
-  db.ref().update(up).then(()=>toast(`プリセット${n+1}を削除した`)).catch(dbErr);
+  db.ref().update(up).then(()=>toast(`「${nm}」を削除した`)).catch(dbErr);
 }
 // 選択トグルはボタン・チップだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
 function togPre(id){
