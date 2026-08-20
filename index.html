@@ -74,7 +74,11 @@ button{font-family:inherit;}
 #bar button.active{color:var(--text); background:var(--panel2);}
 
 /* ===== map ===== */
-#mapWrap{position:relative; height:100%; overflow:auto; background:#0d1122;}
+/* 地図は横にスクロールするので、案内バー・ℹ️ボタン・凡例はスクロールしない層に置く。
+   #mapArea がスクロールしない土台で、その中の #mapWrap だけがスクロールする。 */
+#tab-map.active{display:flex; flex-direction:column;}
+#mapArea{position:relative; flex:1 1 auto; min-height:0;}
+#mapWrap{position:absolute; top:0; left:0; right:0; bottom:0; overflow:auto; background:#0d1122;}
 #mapInner{position:relative; width:200%; max-width:1274px; margin:0 auto;}
 @media(min-width:700px){ #mapInner{width:100%;} }
 #mapInner img{width:100%; display:block; filter:brightness(.92);}
@@ -115,12 +119,19 @@ button{font-family:inherit;}
 }
 @keyframes spark{ from{transform:scale(1) rotate(-15deg); filter:drop-shadow(0 0 2px #ff0);} to{transform:scale(1.5) rotate(15deg); filter:drop-shadow(0 0 8px #f80);} }
 #betaBanner{
-  position:sticky; top:0; z-index:5; text-align:center; font-size:11px;
+  flex:0 0 auto; text-align:center; font-size:11px;
   background:#5a2bd0cc; padding:4px; letter-spacing:1px;
 }
-#geoBadge{position:sticky; top:24px; z-index:5; float:right; margin:6px; font-size:10px;}
+/* 地図の上に浮かべる操作バー（左＝イベント案内・右＝位置情報）。地図をスクロールしても動かない */
+#mapCtl{
+  position:absolute; top:0; left:0; right:0; z-index:5;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:6px;
+  padding:6px; pointer-events:none;
+}
+#mapCtl > *{pointer-events:auto;}
+#geoBadge{font-size:10px;}
 /* マップ左上のイベント案内ボタン（開催中は金色に光る） */
-#evInfoBtn{position:sticky; top:24px; z-index:5; float:left; margin:6px; font-size:10px; cursor:pointer;}
+#evInfoBtn{font-size:10px; cursor:pointer;}
 #evInfoBtn.on{color:var(--gold); border-color:var(--gold); animation:evglow 1.2s ease-in-out infinite alternate;}
 .evrow.evon{border-color:var(--gold);}
 /* 時間と「開催中！」は折り返さず、入らないときは行ごと折り返す */
@@ -306,7 +317,7 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
 
 /* ===== マップ凡例 ===== */
 #mapLegend{
-  position:sticky; bottom:0; left:0; z-index:5; width:100%;
+  position:absolute; bottom:0; left:0; right:0; z-index:5;
   display:flex; flex-wrap:wrap; gap:4px 10px; justify-content:center;
   padding:5px 6px calc(5px + env(safe-area-inset-bottom)); background:#0d1122d9; font-size:11px;
 }
@@ -393,13 +404,17 @@ const BUILDING_DEFS = [
 
 <div id="main">
   <div class="tab active" id="tab-map">
-    <div id="mapWrap">
-      <div id="betaBanner">βテスト中：位置に関係なく全アイコンをタップできます</div>
-      <button class="badge" id="evInfoBtn" onclick="openEventInfo()">ℹ️ イベント時間</button>
-      <span class="badge" id="geoBadge">📡 位置情報 取得中…</span>
-      <div id="mapInner">
-        <img src="campus.png" alt="豊田高専キャンパスマップ">
-        <div id="icons"></div>
+    <div id="betaBanner">βテスト中：位置に関係なく全アイコンをタップできます</div>
+    <div id="mapArea">
+      <div id="mapWrap">
+        <div id="mapInner">
+          <img src="campus.png" alt="豊田高専キャンパスマップ">
+          <div id="icons"></div>
+        </div>
+      </div>
+      <div id="mapCtl">
+        <button class="badge" id="evInfoBtn" onclick="openEventInfo()">ℹ️ イベント時間</button>
+        <span class="badge" id="geoBadge">📡 位置情報 取得中…</span>
       </div>
       <div id="mapLegend"></div>
     </div>
