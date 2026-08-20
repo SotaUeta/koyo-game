@@ -183,13 +183,22 @@ button{font-family:inherit;}
 .center{text-align:center;}
 
 /* ===== gacha ===== */
-#tab-gacha{padding:20px 16px; text-align:center;}
+/* スクロールせず1画面に収まるよう、説明と排出率はℹ️ボタン、結果はポップアップに出す */
+#tab-gacha{padding:12px 16px; text-align:center; position:relative;}
+#gachaInfoBtn{position:absolute; top:8px; left:8px; z-index:2; font-size:10px; cursor:pointer;}
+#gachaBox{
+  min-height:100%; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:12px;
+}
+#gachaBox h2{margin:0;}
 #gachaMachine{
-  width:180px; height:180px; margin:16px auto; border-radius:24px;
+  width:180px; height:180px; border-radius:24px;
   background:radial-gradient(circle at 35% 30%, #39447e, #1c2340 70%);
   border:3px solid var(--line); display:flex; align-items:center; justify-content:center;
-  font-size:72px; position:relative;
+  font-size:72px; position:relative; flex:0 0 auto;
 }
+/* 背の低い画面（横向きなど）ではガシャ機を小さくして収める */
+@media(max-height:620px){ #gachaMachine{width:110px; height:110px; font-size:44px;} }
 #gachaMachine.spin{animation:shake .12s infinite;}
 @keyframes shake{ 0%{transform:rotate(-4deg);} 100%{transform:rotate(4deg);} }
 #gachaBtn{
@@ -198,7 +207,9 @@ button{font-family:inherit;}
   box-shadow:0 4px 0 #a06b00;
 }
 #gachaBtn:disabled{filter:grayscale(1); opacity:.5; box-shadow:none;}
-#gachaResult .card{max-width:320px; margin:10px auto;}
+#gachaSheet .card{max-width:320px; margin:10px auto;}
+/* ポップアップの中で「もう1回」を押したときの回転演出 */
+.gspin{font-size:64px; padding:24px 0; animation:shake .12s infinite;}
 .reveal{animation:pop .5s ease-out;}
 @keyframes pop{ 0%{transform:scale(.2) rotate(-20deg); opacity:0;} 70%{transform:scale(1.15);} 100%{transform:scale(1);} }
 
@@ -259,6 +270,8 @@ button{font-family:inherit;}
   background:#000d; border:1px solid var(--line); border-radius:10px; padding:8px 16px;
   font-size:13px; animation:up .2s;
 }
+/* シートが開いている間は、トーストが中身を隠さないよう画面上部に逃がす */
+body:has(.overlay.show) #toasts{bottom:auto; top:56px;}
 
 /* ===== 折りたたみ（所持品・ミッション） ===== */
 details.fold{
@@ -421,13 +434,13 @@ const BUILDING_DEFS = [
   </div>
 
   <div class="tab" id="tab-gacha">
-    <h2>人材ガシャ</h2>
-    <p class="note">🪙バイトコインは5分ごとに1枚たまる（最大5枚）。バイトコインが無いときは💴100円でも回せるよ</p>
-    <div id="gachaMachine">🎰</div>
-    <div id="coinTimer" class="note"></div>
-    <button id="gachaBtn">🪙1枚で回す</button>
-    <p class="note" id="rateLine"></p>
-    <div id="gachaResult"></div>
+    <button class="badge" id="gachaInfoBtn" onclick="openGachaInfo()">ℹ️ 説明・排出率</button>
+    <div id="gachaBox">
+      <h2>人材ガシャ</h2>
+      <div id="gachaMachine">🎰</div>
+      <div id="coinTimer" class="note"></div>
+      <button id="gachaBtn">🪙バイトコイン1枚で回す</button>
+    </div>
   </div>
 
   <div class="tab" id="tab-missions">
@@ -506,6 +519,10 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovExpel"><div class="sheet" id="expelSheet"></div></div>
 <!-- イベント時間の案内（マップ左上のℹ️から開く） -->
 <div class="overlay" id="ovEvent"><div class="sheet" id="eventSheet"></div></div>
+<!-- ガシャの説明・排出率（ガシャ左上のℹ️から開く） -->
+<div class="overlay" id="ovGachaInfo"><div class="sheet" id="gachaInfoSheet"></div></div>
+<!-- ガシャ結果 -->
+<div class="overlay" id="ovGacha"><div class="sheet" id="gachaSheet"></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -938,6 +955,8 @@ function renderEventBanner(){
   const ib=$("evInfoBtn");
   if(ib) ib.classList.toggle("on", act.length>0);
   if($("ovEvent")?.classList.contains("show")) renderEventSheet();
+  // ガシャの説明にもモーニングガシャの開催状況を出しているので、開いていれば更新
+  if($("ovGachaInfo")?.classList.contains("show")) renderGachaInfo();
 }
 // イベント時間の案内（マップ左上のℹ️ボタンから開く）
 function openEventInfo(){ $("ovEvent").classList.add("show"); renderEventSheet(); }
@@ -1591,11 +1610,14 @@ function gachaPay(){
   if(myYen()>=YEN_PER_GACHA) return {kind:"yen", st};
   return {kind:null, st};
 }
+// 支払い方法に合わせたボタンの文言
+const gachaCostLabel = kind => kind==="yen" ? `💴${YEN_PER_GACHA}円` : "🪙バイトコイン1枚";
 function renderGacha(){
   if(!me) return;
   const pay=gachaPay();
-  $("gachaBtn").disabled = !pay.kind;
-  $("gachaBtn").textContent = pay.kind==="yen" ? `💴${YEN_PER_GACHA}円で回す` : "🪙バイトコイン1枚で回す";
+  $("gachaBtn").disabled = !pay.kind || gachaSpinning;
+  $("gachaBtn").textContent = `${gachaCostLabel(pay.kind)}で回す`;
+  updateReGachaBtn();
   renderGachaTimer();
   renderMissions();
 }
@@ -1609,7 +1631,10 @@ function renderGachaTimer(){
     $("coinTimer").textContent=`🪙${st.coins}枚 ／ 次のバイトコインまで ${Math.floor(s/60)}分${s%60}秒${wallet}`;
   }
 }
-$("gachaBtn").onclick=()=>{
+// ガシャを1回まわす（ガシャ画面のボタンと、結果ポップアップの「もう1回」から呼ぶ）
+let gachaSpinning=false;
+function doGacha(){
+  if(gachaSpinning) return;
   const pay=gachaPay();
   if(!pay.kind) return;
   const st=pay.st;
@@ -1622,21 +1647,71 @@ $("gachaBtn").onclick=()=>{
     up[`players/${PID}/yen`]=INC(-YEN_PER_GACHA);
   }
   up[`players/${PID}/units/${u.id}`]=u;
+  gachaSpinning=true;
+  $("gachaBtn").disabled=true;
   $("gachaMachine").classList.add("spin");
-  $("gachaResult").innerHTML="";
+  // ポップアップを開いたまま「もう1回」した場合は、シートの中で回す
+  if($("ovGacha").classList.contains("show"))
+    $("gachaSheet").innerHTML=`<h2>🎰 ガシャ中…</h2><div class="center gspin">🎰</div>`;
   db.ref().update(up).then(()=>{
     missionProg("gacha");
-    toast(pay.kind==="coin"?"🪙バイトコインを1枚使った":`💴${YEN_PER_GACHA}円を使った`);
     setTimeout(()=>{
+      gachaSpinning=false;
       $("gachaMachine").classList.remove("spin");
-      const sk=skillDef(u);
-      $("gachaResult").innerHTML=`<div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><span class="badge">${elmIco(u.elm)}</span><b>${esc(u.name)}</b></div>
-        <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>
-        ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
-        ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>`;
+      showGachaResult(u, pay.kind);
+      renderGacha();
     },900);
-  }).catch(()=>{ $("gachaMachine").classList.remove("spin"); dbErr(); });
-};
+  }).catch(()=>{
+    gachaSpinning=false;
+    $("gachaMachine").classList.remove("spin");
+    closeOv("ovGacha");
+    renderGacha();
+    dbErr();
+  });
+}
+$("gachaBtn").onclick=doGacha;
+
+/* ---- ガシャ結果のポップアップ ---- */
+let lastGachaUnit=null;
+function showGachaResult(u, paidKind){
+  lastGachaUnit=u;
+  $("ovGacha").classList.add("show");
+  const sk=skillDef(u), pay=gachaPay();
+  $("gachaSheet").innerHTML=`<h2>🎰 ガシャ結果 <button class="xbtn" onclick="closeOv('ovGacha')">閉じる</button></h2>
+    <div class="sub">${gachaCostLabel(paidKind)}を使った</div>
+    <div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><span class="badge">${elmIco(u.elm)}</span><b>${esc(u.name)}</b></div>
+      <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}</div>
+      ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
+      ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>
+    <div class="row">
+      <button class="bigbtn" onclick="closeOv('ovGacha')">とじる</button>
+      <button class="bigbtn" id="reGachaBtn" ${pay.kind?"":"disabled"} onclick="doGacha()">🎰 ${gachaCostLabel(pay.kind)}でもう1回</button>
+    </div>`;
+}
+// ポップアップを開いたままコインがたまった／尽きたときに「もう1回」の状態だけ直す
+// （シートごと描き直すと結果カードの演出が毎回やり直しになるため）
+function updateReGachaBtn(){
+  const btn=$("reGachaBtn"); if(!btn) return;
+  const pay=gachaPay();
+  btn.disabled=!pay.kind || gachaSpinning;
+  btn.textContent=`🎰 ${gachaCostLabel(pay.kind)}でもう1回`;
+}
+
+/* ---- ガシャの説明・排出率（ガシャ左上のℹ️から開く） ---- */
+function openGachaInfo(){ $("ovGachaInfo").classList.add("show"); renderGachaInfo(); }
+function renderGachaInfo(){
+  const ev=eventActive("gachaA");
+  const rates=[...GACHA_RATE].reverse().map(([k,p])=>
+    `<div class="mrow"><span class="rank ${k}">${k}</span><span class="stat">${p}%</span></div>`).join("");
+  $("gachaInfoSheet").innerHTML=`<h2>ℹ️ ガシャについて <button class="xbtn" onclick="closeOv('ovGachaInfo')">閉じる</button></h2>
+    <div class="card"><div class="top"><b>🪙バイトコイン</b></div>
+      <div class="stat">5分ごとに1枚たまる（最大${COIN_MAX}枚）。ガシャ1回につき1枚使うよ</div></div>
+    <div class="card"><div class="top"><b>💴お金</b></div>
+      <div class="stat">バイトコインが無いときは${YEN_PER_GACHA}円で回せる。ミッション・バトル・放校でたまるよ</div></div>
+    <div class="card"><div class="top"><b>排出率</b></div>${rates}
+      <div class="note">ステータスには個体差（±10%）があるよ</div>
+      ${ev?`<div class="note" style="color:var(--gold)">🎰 モーニングガシャ開催中！ Aランクの率が${EVENT_GACHA_A_MULT}倍だよ</div>`:""}</div>`;
+}
 
 /* =============== デイリーミッション =============== */
 // その日の日付キー（端末のローカル時刻基準・毎日0時にリセット）
@@ -2051,8 +2126,6 @@ $("koyoBadge").style.cursor="pointer";
 $("koyoBadge").onclick=()=>switchTab("rank");
 
 /* =============== 静的UIの初期化 =============== */
-// ガシャ排出率（GACHA_RATEから生成・レア順）
-$("rateLine").textContent="排出率: "+[...GACHA_RATE].reverse().map(([k,p])=>`${k}ランク ${p}%`).join("・");
 // マップ凡例（陣営カラー）
 $("mapLegend").innerHTML=Object.entries(FACTIONS).map(([k,f])=>
   `<span class="lchip"><i style="background:${f.color}"></i>${k}科</span>`).join("")
@@ -2062,6 +2135,9 @@ $("ovEquip").onclick=e=>{ if(e.target.id==="ovEquip") closeOv("ovEquip"); };
 $("ovHeal").onclick=e=>{ if(e.target.id==="ovHeal") closeOv("ovHeal"); };
 $("ovExpel").onclick=e=>{ if(e.target.id==="ovExpel") closeOv("ovExpel"); };
 $("ovEvent").onclick=e=>{ if(e.target.id==="ovEvent") closeOv("ovEvent"); };
+$("ovGachaInfo").onclick=e=>{ if(e.target.id==="ovGachaInfo") closeOv("ovGachaInfo"); };
+// ガシャ結果は回転中に閉じない（結果が出る前に消えてしまうのを防ぐ）
+$("ovGacha").onclick=e=>{ if(e.target.id==="ovGacha" && !gachaSpinning) closeOv("ovGacha"); };
 $("ovRename").onclick=e=>{ if(e.target.id==="ovRename") closeOv("ovRename"); };
 $("renameInput").onkeydown=e=>{ if(e.key==="Enter") saveRename(); };
 
