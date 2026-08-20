@@ -464,6 +464,7 @@ const BUILDING_DEFS = [
       <div id="filterPanel">
         <div class="matline" id="sortLine"></div>
         <div class="matline" id="elmLine"></div>
+        <div class="matline" id="stateLine"></div>
       </div>
     </div>
     <div id="unitList"></div>
@@ -1890,10 +1891,14 @@ function applyPreset(n){
 }
 
 /* =============== 人材タブ =============== */
-let unitSort="rank", unitFilter="all", filtersOpen=false;
+let unitSort="rank", unitFilter="all", unitState="all", filtersOpen=false;
 const UNIT_SORTS={rank:"ランク順", atk:"攻撃力順", def:"守り順", hp:"HP順"};
+// 防衛中かどうかでの絞り込み
+const UNIT_STATES={all:"全部", def:"🛡防衛中", free:"🏠待機中"};
+const matchState = u => unitState==="all" || (unitState==="def" ? !!u.defendingAt : !u.defendingAt);
 function setUnitSort(k){ unitSort=k; renderUnits(); }
 function setUnitFilter(k){ unitFilter=k; renderUnits(); }
+function setUnitState(k){ unitState=k; renderUnits(); }
 // 並び替え・絞り込みパネルの開閉（既定は閉じてリストを広く使う）
 function toggleFilters(){ filtersOpen=!filtersOpen; $("unitFilters").classList.toggle("open",filtersOpen); }
 // 人材カードをタップで開閉（回復・装備ボタンを表示）。ボタン操作では開閉しない
@@ -1921,15 +1926,22 @@ function renderUnits(){
     `<button class="mini ${unitSort===k?"sel":""}" onclick="setUnitSort('${k}')">${n}</button>`).join("");
   $("elmLine").innerHTML="属性: "+`<button class="mini ${unitFilter==="all"?"sel":""}" onclick="setUnitFilter('all')">全部</button>`+
     ELM_KEYS.map(k=>`<button class="mini ${unitFilter===k?"sel":""}" onclick="setUnitFilter('${k}')">${ELEMENTS[k].ico}${ELEMENTS[k].name}</button>`).join("");
+  // 防衛中/待機中で絞る。ボタンに該当数も出す
+  const all=Object.entries(me.units||{});
+  const nDef=all.filter(([id,u])=>u.defendingAt).length;
+  const stCnt={all:all.length, def:nDef, free:all.length-nDef};
+  $("stateLine").innerHTML="状態: "+Object.entries(UNIT_STATES).map(([k,n])=>
+    `<button class="mini ${unitState===k?"sel":""}" onclick="setUnitState('${k}')">${n}（${stCnt[k]}）</button>`).join("");
   // トグルボタンに現在の並び・絞り込みを表示（開かなくても状態が分かる）
-  $("filterToggle").innerHTML=`🔀 ${UNIT_SORTS[unitSort]}${unitFilter!=="all"?` ・ ${ELEMENTS[unitFilter].ico}${ELEMENTS[unitFilter].name}`:""} ${filtersOpen?"▲":"▾"}`;
+  $("filterToggle").innerHTML=`🔀 ${UNIT_SORTS[unitSort]}${unitFilter!=="all"?` ・ ${ELEMENTS[unitFilter].ico}${ELEMENTS[unitFilter].name}`:""}${unitState!=="all"?` ・ ${UNIT_STATES[unitState]}`:""} ${filtersOpen?"▲":"▾"}`;
   $("unitFilters").classList.toggle("open",filtersOpen);
   const wrap=$("unitList"); wrap.innerHTML="";
-  let units=Object.entries(me.units||{});
+  let units=all;
   const hasAny=units.length>0;
   if(unitFilter!=="all") units=units.filter(([id,u])=>u.elm===unitFilter);
+  units=units.filter(([id,u])=>matchState(u));
   units=sortUnits(units);
-  if(!units.length) wrap.innerHTML=hasAny?'<p class="note">この属性の人材はいない。</p>':'<p class="note">まだ人材がいない。ガシャを回そう！</p>';
+  if(!units.length) wrap.innerHTML=hasAny?'<p class="note">この条件に合う人材はいない。</p>':'<p class="note">まだ人材がいない。ガシャを回そう！</p>';
   units.forEach(([id,u])=>{
     const hpr=u.hp/u.maxHp;
     const d=document.createElement("div"); d.className="card ucard";
