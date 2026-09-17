@@ -306,6 +306,23 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
 .mrow .stat{font-size:12px;}
 .sktap{cursor:pointer;}
 
+/* ===== 編成プリセット（◀▶で1枚ずつ切り替え。表示中＝選択中の編成） ===== */
+/* 縦に積むと人材リストまでのスクロールが長くなるので、常に1枚だけ表示する */
+#presetNav{display:flex; align-items:center; gap:8px; margin:4px 0;}
+#presetNav .mini{padding:6px 18px; font-size:15px; line-height:1;}
+#preDots{flex:1; display:flex; justify-content:center; align-items:center; gap:2px;}
+.predot{
+  border:none; background:none; color:var(--dim); font-size:13px;
+  padding:6px 3px; cursor:pointer; line-height:1; font-family:inherit;
+}
+.predot.sel{color:var(--gold); text-shadow:0 0 6px var(--gold);}
+.predot:disabled{opacity:.4;}
+.presetCard{margin:0;}
+.presetCard .top{gap:4px;}
+/* 長い名前でもボタンを押し出さないよう、名前だけ省略表示にする */
+.presetCard .top b{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.presetCard .mini{flex:0 0 auto;}
+
 /* ===== 選択中メンバーのチップ（タップで外せる） ===== */
 .selchips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0;}
 .chip{
@@ -723,7 +740,7 @@ const INC = n => firebase.database.ServerValue.increment(n);
 let PID = null;
 const OLD_PID = localStorage.getItem("koyo_pid");
 
-let me=null, buildings={}, rankData={}, geo=null, curB=null, curSub=null, selUnits=new Set(), rankSynced=false;
+let me=null, buildings={}, rankData={}, geo=null, curB=null, curSub=null, rankSynced=false;
 const $ = id=>document.getElementById(id);
 const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 // トーストは専用コンテナに縦積み（連発しても重ならない・最大3件）
@@ -1064,7 +1081,7 @@ function updateBadges(){
 }
 
 /* =============== 建物画面 =============== */
-function openBuilding(bid){ curB=bid; curSub=null; selUnits.clear(); $("ovB").classList.add("show"); renderBuilding(bid); }
+function openBuilding(bid){ curB=bid; curSub=null; $("ovB").classList.add("show"); renderBuilding(bid); }
 function closeOv(id){ $(id).classList.remove("show"); if(id==="ovB") curB=null; }
 $("ovB").onclick=e=>{ if(e.target.id==="ovB") closeOv("ovB"); };
 $("ovLog").onclick=e=>{ if(e.target.id==="ovLog") closeOv("ovLog"); };
@@ -1243,59 +1260,39 @@ function claimRationAt(bid){
 }
 
 /* ---- 攻撃 ---- */
-let atkSort="rank", atkFilter="all";
-function setAtkSort(k){ atkSort=k; viewAttack(); }
-function setAtkFilter(k){ atkFilter=k; viewAttack(); }
+// 出撃メンバー = 選択中プリセットのうち、HPが残っていて防衛中でない人材（最大6体）
+function battleMembers(){
+  return (getPreset(presetCur)||[]).filter(id=>{
+    const u=me?.units?.[id];
+    return u && u.hp>0 && !u.defendingAt;
+  }).slice(0,6);
+}
+// 攻撃画面。メンバーは人材タブで選んだ「選択中プリセット」で固定なので、ここでは確認だけ
 function viewAttack(){
   curSub=viewAttack;
   const openRow=$("atkOpenRow"); if(openRow) openRow.style.display="none";
-  let list=Object.entries(me.units||{}).filter(([id,u])=>u.hp>0 && !u.defendingAt);
-  const hasAny=list.length>0;
-  if(atkFilter!=="all") list=list.filter(([id,u])=>u.elm===atkFilter);
-  list=sortUnits(list, atkSort);
+  const ids=(getPreset(presetCur)||[]).filter(id=>me.units?.[id]);
+  const members=battleMembers();
+  const resting=ids.length-members.length;
   const ter=terrainOf(curB);
-  let html=`<h3 style="font-size:13px;">⚔ 出撃メンバーを選ぶ（最大6体）</h3>`;
+  const toUnits=`<button class="mini" onclick="closeOv('ovB'); switchTab('units')">👥 人材タブで編成する</button>`;
+  let html=`<h3 style="font-size:13px;">⚔ 「${esc(presetName(presetCur))}」で攻撃</h3>`;
   if(ter) html+=`<div class="note">${terrainNote(curB)}</div>`;
-  const pres=[]; for(let n=0;n<PRESET_MAX;n++) if(getPreset(n)) pres.push(n);
-  if(pres.length) html+=`<div class="matline">プリセット: `+pres.map(n=>
-    `<button class="mini" onclick="applyPreset(${n})">⚡ ${esc(presetName(n))}</button>`).join("")+`</div>`;
-  else html+=`<div class="note">💡 人材タブで編成プリセットを作ると、ここからワンタップで選べるよ</div>`;
-  html+=`<div class="matline">並び: `+Object.entries(UNIT_SORTS).map(([k,n])=>
-    `<button class="mini ${atkSort===k?"sel":""}" onclick="setAtkSort('${k}')">${n}</button>`).join("")+`</div>`;
-  html+=`<div class="matline">属性: <button class="mini ${atkFilter==="all"?"sel":""}" onclick="setAtkFilter('all')">全部</button>`+
-    ELM_KEYS.map(k=>`<button class="mini ${atkFilter===k?"sel":""}" onclick="setAtkFilter('${k}')">${ELEMENTS[k].ico}${ELEMENTS[k].name}</button>`).join("")+`</div>`;
-  if(!list.length) html+=`<p class="note">${hasAny?"この属性の出撃できる人材はいない。":"出撃できる人材がいない。ガシャで引くか回復しよう。"}</p>`;
-  list.forEach(([id,u])=>{
-    const tb=ter&&u.elm===ter, sk=skillDef(u);
-    html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>
-      <button class="mini ${selUnits.has(id)?"sel":""}" style="margin-left:auto" data-sel="${id}" onclick="togSel('${id}')">${selUnits.has(id)?"✔選択中":"選ぶ"}</button></div>
-      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div>
-      ${sk?`<div class="note skline">✨${sk.ico}${sk.name}（${sk.desc}）</div>`:""}</div>`;
-  });
-  html+=`<div class="atkfloat"><div class="selchips" id="atkChips"></div>
-    <button class="bigbtn" id="atkGoBtn" style="width:100%" ${selUnits.size?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${selUnits.size}体）</button></div>`;
+  if(!ids.length){
+    html+=`<div class="card"><div class="note">この編成にはメンバーがいない。人材タブで◀▶からプリセットを選んで、メンバーを決めてね。</div>${toUnits}</div>`;
+  }else if(!members.length){
+    html+=`<div class="card"><div class="note">出撃できるメンバーがいない（${ids.length}体ぜんぶHP0か防衛中）。回復するか、別のプリセットに切り替えてね。</div>${toUnits}</div>`;
+  }else{
+    html+=`<div class="note">出撃 ${members.length}体${resting?`　（${resting}体はHP0か防衛中でお休み）`:""}</div>`;
+    html+=members.map(id=>{
+      const u=me.units[id], tb=ter&&u.elm===ter, sk=skillDef(u);
+      return `<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b></div>
+        <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div>
+        ${sk?`<div class="note skline">✨${sk.ico}${sk.name}（${sk.desc}）</div>`:""}</div>`;
+    }).join("");
+  }
+  html+=`<div class="atkfloat"><button class="bigbtn" id="atkGoBtn" style="width:100%" ${members.length?"":"disabled"} onclick="startBattle()">⚔ 攻撃開始（${members.length}体）</button></div>`;
   $("bSub").innerHTML=html;
-  renderAtkChips();
-}
-// 下部固定エリアに選択中メンバーをチップ表示（スクロールせずに中身の確認・除外ができる）
-function renderAtkChips(){
-  const box=$("atkChips"); if(!box) return;
-  const chips=[...selUnits].map(id=>{
-    const u=me.units?.[id];
-    return u?`<button class="chip" onclick="togSel('${id}')">${u.rank}·${esc(u.name)} HP${u.hp} ✕</button>`:"";
-  }).join("");
-  box.innerHTML=chips||'<span class="note">出撃メンバーを「選ぶ」で追加してね（チップをタップすると外せる）</span>';
-}
-// 選択トグルはボタン・チップだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
-function togSel(id){
-  if(selUnits.has(id)) selUnits.delete(id);
-  else{ if(selUnits.size>=6){ toast("6体までだよ"); return; } selUnits.add(id); }
-  const on=selUnits.has(id);
-  const btn=document.querySelector(`#bSub [data-sel="${id}"]`);
-  if(btn){ btn.classList.toggle("sel",on); btn.textContent=on?"✔選択中":"選ぶ"; }
-  renderAtkChips();
-  const go=$("atkGoBtn");
-  if(go){ go.disabled=!selUnits.size; go.textContent=`⚔ 攻撃開始（${selUnits.size}体）`; }
 }
 
 /* =============== バトル =============== */
@@ -1379,6 +1376,7 @@ function skRoundEnd(side, log){
 
 function startBattle(){
   const bid=curB;
+  if(!battleMembers().length){ toast("出撃できるメンバーがいないよ"); return; }
   db.ref("buildings/"+bid).get().then(snap=>{
     const b=snap.val(); if(!b) return;
     if(b.owner===me.faction){ toast("いつの間にか自陣営になってた！"); renderBuilding(bid); return; }
@@ -1387,7 +1385,7 @@ function startBattle(){
 }
 function runBattle(bid,b){
   const log=[];
-  const A=[...selUnits].map(id=>({id, ...me.units[id]})).filter(u=>u.hp>0);
+  const A=battleMembers().map(id=>({id, ...me.units[id]})).filter(u=>u.hp>0);
   const D=Object.values(b.defenders||{}).map(d=>({...d}));
   // 拠点は時間で自然回復（2%/分）
   let bhp=b.hp;
@@ -1549,8 +1547,6 @@ function runBattle(bid,b){
   });
   db.ref().update(up).catch(dbErr);
   missionProg("attack");
-
-  selUnits.clear();
   showLog(log);
 }
 let logQueue=[], logIdx=0, logTimer=null;
@@ -1767,8 +1763,14 @@ function renderMissions(){
 }
 
 /* =============== 編成プリセット =============== */
-const PRESET_MAX=3;
+const PRESET_MAX=6;
 let presetEdit=null, presetSel=new Set(), renameN=null;
+// 表示中＝選択中のプリセット番号（端末に保存しておく）
+let presetCur=(()=>{
+  let n=0;
+  try{ n=Number(localStorage.getItem("koyo_preset"))||0; }catch(e){}
+  return Number.isInteger(n) && n>=0 && n<PRESET_MAX ? n : 0;
+})();
 function getPreset(n){ const ids=(me.presets||[])[n]; return ids?Object.values(ids):null; }
 // 保存済みの名前。未設定なら「プリセットN」を返す
 function presetName(n){
@@ -1781,31 +1783,52 @@ function presetMemberRows(ids){
     const u=me.units[id], sk=skillDef(u);
     const st=u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>'
       :(u.defendingAt?'<span class="badge">🛡防衛中</span>':"");
+    // ステータスだけ2行目に落とすので、スキル・状態は名前と同じ1行目に置く
     return `<div class="mrow"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?ELEMENTS[u.elm].ico:""}<b>${esc(u.name)}</b>
-      <span class="stat">HP${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</span>${sk?`<span class="sktap" onclick="showUnitSkill('${id}')">✨${sk.ico}</span>`:""}${st}</div>`;
+      ${sk?`<span class="sktap" onclick="showUnitSkill('${id}')">✨${sk.ico}</span>`:""}${st}
+      <span class="stat">HP${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</span></div>`;
   }).join("");
 }
 function showUnitSkill(uid){
   const u=me.units?.[uid], s=skillDef(u);
   if(s) toast(`✨${s.ico}${s.name}: ${s.desc}`,4000);
 }
+/* ---- 表示中のプリセット＝選択中。◀▶で切り替え、攻撃はこの編成で出る ---- */
+// 端末に覚えておくので、開き直しても同じ編成が選択されたままになる
+function savePresetCur(){ try{ localStorage.setItem("koyo_preset", presetCur); }catch(e){} }
+function presetGo(n){
+  if(presetEdit!==null){ toast("編集を保存するか、やめてから切り替えてね"); return; }
+  presetCur=(n+PRESET_MAX)%PRESET_MAX;
+  savePresetCur();
+  renderUnits();
+  // 建物の攻撃画面を開いたままなら、出撃メンバーの表示も追従させる
+  if(curB && curSub===viewAttack) viewAttack();
+}
+function presetStep(d){ presetGo(presetCur+d); }
 function renderPresets(){
   const box=$("presetBox"); if(!box||!me) return;
-  let html=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">名前タップで変更できるよ</span></h3>`;
-  for(let n=0;n<PRESET_MAX;n++){
-    if(presetEdit===n){
-      html+=`<div class="card"><div class="top"><b>${esc(presetName(n))} を編集中</b></div>
-        <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。保存は画面上部の金色バーから</div></div>`;
-      continue;
-    }
-    const ids=getPreset(n);
+  const n=presetCur, editing=presetEdit!==null;
+  const ids=getPreset(n);
+  let card;
+  if(presetEdit===n){
+    card=`<div class="card presetCard"><div class="top"><b>${esc(presetName(n))} を編集中</b></div>
+      <div class="note">下の人材リストの「選ぶ」でメンバーを決めてね。保存は画面上部の金色バーから</div></div>`;
+  }else{
     const rows=ids?presetMemberRows(ids):"";
-    html+=`<div class="card"><div class="top"><b class="renameable" onclick="openRename(${n})">${esc(presetName(n))} ✎</b>
-      <button class="mini" style="margin-left:auto" ${presetEdit!==null?"disabled":""} onclick="editPreset(${n})">${ids?"編集":"作成"}</button>
-      ${ids?`<button class="mini" ${presetEdit!==null?"disabled":""} onclick="delPreset(${n})">削除</button>`:""}</div>
-      ${ids?(rows||'<div class="note">（メンバーがいない）</div>'):'<div class="note">未設定</div>'}</div>`;
+    card=`<div class="card presetCard"><div class="top"><b class="renameable" onclick="openRename(${n})">${esc(presetName(n))} ✎</b>
+      <button class="mini" onclick="editPreset(${n})">${ids?"編集":"作成"}</button>
+      ${ids?`<button class="mini" onclick="delPreset(${n})">削除</button>`:""}</div>
+      ${ids?(rows||'<div class="note">（メンバーがいない）</div>'):'<div class="note">未設定 ー「作成」でメンバーを決めよう</div>'}</div>`;
   }
-  box.innerHTML=html;
+  // ●=メンバーあり ○=未設定。タップでそのプリセットへ直接移動できる
+  const dots=Array.from({length:PRESET_MAX},(_,i)=>
+    `<button class="predot ${i===n?"sel":""}" ${editing?"disabled":""} onclick="presetGo(${i})">${getPreset(i)?"●":"○"}</button>`).join("");
+  box.innerHTML=`<h3 style="font-size:13px; margin:8px 0 4px;">⚔ 編成プリセット <span class="note">表示中の編成で攻撃するよ</span></h3>
+    <div id="presetNav">
+      <button class="mini" ${editing?"disabled":""} onclick="presetStep(-1)">◀</button>
+      <div id="preDots">${dots}</div>
+      <button class="mini" ${editing?"disabled":""} onclick="presetStep(1)">▶</button>
+    </div>${card}`;
   renderPreEditBar();
 }
 // 編集中だけ表示される固定バー（保存ボタンと選択メンバーが常に見える・名前は名前部分のタップで変更）
@@ -1864,10 +1887,11 @@ function savePreset(){
   renderUnits();
 }
 function delPreset(n){
+  const nm=presetName(n); // 消すと既定名に戻るので、先に控えておく
   const up={};
   up[`players/${PID}/presets/${n}`]=null;
   up[`players/${PID}/presetNames/${n}`]=null; // 名前も一緒に消す
-  db.ref().update(up).then(()=>toast(`プリセット${n+1}を削除した`)).catch(dbErr);
+  db.ref().update(up).then(()=>toast(`「${nm}」を削除した`)).catch(dbErr);
 }
 // 選択トグルはボタン・チップだけその場で書き換える（リスト全体を再描画するとスクロール位置が飛ぶため）
 function togPre(id){
@@ -1880,16 +1904,6 @@ function togPre(id){
   const c=$("preCnt");
   if(c) c.textContent=`（${presetSel.size}/6体）`;
 }
-// 攻撃画面でプリセットを呼び出す（HP0・防衛中は自動で外す）
-function applyPreset(n){
-  const ids=getPreset(n)||[];
-  const ok=ids.filter(id=>{ const u=me.units?.[id]; return u&&u.hp>0&&!u.defendingAt; });
-  selUnits=new Set(ok.slice(0,6));
-  const skipped=ids.filter(id=>me.units?.[id]).length-ok.length;
-  toast(skipped?`「${presetName(n)}」をセット（${skipped}体はHP0か防衛中でお休み）`:`「${presetName(n)}」をセット！`);
-  viewAttack();
-}
-
 /* =============== 人材タブ =============== */
 let unitSort="rank", unitFilter="all", unitState="all", filtersOpen=false;
 const UNIT_SORTS={rank:"ランク順", atk:"攻撃力順", def:"守り順", hp:"HP順"};
@@ -2099,7 +2113,7 @@ function doExpel(){
     up[`players/${PID}/presets/${n}`]=rest.length?rest:null;
   });
   expelUid=null;
-  presetSel.delete(uid); selUnits.delete(uid);
+  presetSel.delete(uid);
   closeOv("ovExpel");
   db.ref().update(up).then(()=>
     toast(`🚪 ${u.name} を放校した。経費削減で💴${gain}円${eq?`／${eq.name}が返ってきた`:""}`,3500)
