@@ -273,13 +273,6 @@ button{font-family:inherit;}
 /* シートが開いている間は、トーストが中身を隠さないよう画面上部に逃がす */
 body:has(.overlay.show) #toasts{bottom:auto; top:56px;}
 
-/* ===== 折りたたみ（所持品・ミッション） ===== */
-details.fold{
-  border:2px solid var(--line); border-radius:10px; background:var(--panel2);
-  padding:8px 10px; margin:8px 0; text-align:left;
-}
-details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;}
-
 /* ===== 人材タブの固定フィルタ ===== */
 /* stickyが親の高さで途切れないよう、このタブだけ高さを内容に合わせる */
 #tab-units{height:auto; min-height:100%;}
@@ -291,7 +284,16 @@ details.fold summary{cursor:pointer; font-size:13px; list-style-position:inside;
 #filterPanel{display:none; margin-top:6px;}
 #unitFilters.open #filterPanel{display:block;}
 
-/* ===== 人材カード：タップで回復・装備の操作を開く ===== */
+/* ===== 持ち物タブ ===== */
+#tab-items{padding:12px;}
+#itemsBox{max-width:460px; margin:0 auto;}
+/* 持ち物カードはタップで「使う人材を選ぶ」画面へ */
+.itemcard{cursor:pointer;}
+.itemcard .exp{color:var(--dim); margin-left:4px;}
+/* 使えない人材（満タン・装備中）は薄く出して、理由が分かるようにしておく */
+.card.pickoff{opacity:.45;}
+
+/* ===== 人材カード：タップで放校などの操作を開く ===== */
 .ucard{cursor:pointer;}
 .ucard .exp{color:var(--dim); transition:transform .2s;}
 .ucard.open .exp{transform:rotate(90deg);}
@@ -469,12 +471,6 @@ const BUILDING_DEFS = [
   <div class="tab" id="tab-units">
     <h2>人材いちらん</h2>
     <div id="presetBox"></div>
-    <details class="fold">
-      <summary>🎒 所持品（回復・装備・素材）<span class="note">タップで説明</span></summary>
-      <div class="matline" id="itemLine"></div>
-      <div class="matline" id="equipLine"></div>
-      <div class="matline" id="matLine"></div>
-    </details>
     <div id="preEditBar"></div>
     <div id="unitFilters">
       <button class="mini" id="filterToggle" onclick="toggleFilters()">🔀 並び替え・絞り込み ▾</button>
@@ -487,8 +483,15 @@ const BUILDING_DEFS = [
     <div id="unitList"></div>
   </div>
 
+  <div class="tab" id="tab-items">
+    <h2>🎒 持ち物</h2>
+    <p class="note">持ち物をタップ → 使う人材を選ぶよ。数があるぶんは続けて使えるよ</p>
+    <div id="itemsBox"></div>
+  </div>
+
   <div class="tab" id="tab-rank">
-    <h2>ランキング <button class="mini" onclick="fetchRank(); toast('ランキングを更新中…')">🔄 更新</button></h2>
+    <h2>ランキング <button class="mini" onclick="fetchRank(); toast('ランキングを更新中…')">🔄 更新</button>
+      <button class="mini" onclick="switchTab('map')">🗺 マップへ</button></h2>
     <h3 style="font-size:13px;">学科の倍率（陣営ランキング）</h3>
     <div id="facRank"></div>
     <h3 style="font-size:13px;">陣営内ランキング（🍁こうよう）</h3>
@@ -501,7 +504,7 @@ const BUILDING_DEFS = [
   <button data-tab="gacha"><span class="ico">🎰</span>ガシャ</button>
   <button data-tab="missions"><span class="ico">📋</span>ミッション<span class="tbadge" id="badgeMissions"></span></button>
   <button data-tab="units"><span class="ico">👥</span>人材</button>
-  <button data-tab="rank"><span class="ico">🏆</span>ランキング</button>
+  <button data-tab="items"><span class="ico">🎒</span>持ち物</button>
 </div>
 
 <!-- 建物モーダル -->
@@ -529,10 +532,8 @@ const BUILDING_DEFS = [
     <button class="bigbtn" id="logoutGo" style="border-color:var(--danger); color:var(--danger)">ログアウトする</button>
   </div>
 </div></div>
-<!-- 装備ピッカー -->
-<div class="overlay" id="ovEquip"><div class="sheet" id="equipSheet"></div></div>
-<!-- 回復ピッカー -->
-<div class="overlay" id="ovHeal"><div class="sheet" id="healSheet"></div></div>
+<!-- 持ち物 → 使う人材を選ぶ画面 -->
+<div class="overlay" id="ovPick"><div class="sheet" id="pickSheet"></div></div>
 <!-- 放校の確認 -->
 <div class="overlay" id="ovExpel"><div class="sheet" id="expelSheet"></div></div>
 <!-- イベント時間の案内（マップ左上のℹ️から開く） -->
@@ -893,11 +894,10 @@ function subscribe(){
     if(!me){ showReg(); return; }
     $("reg").classList.remove("show");
     ensureRankNode();
-    renderHdr(); renderUnits(); renderGacha(); renderMap();
+    renderHdr(); renderUnits(); renderItems(); renderGacha(); renderMap();
     if(curB) renderBuilding(curB);
-    // 開いている装備／回復ピッカーも最新の所持数・HPで描き直す
-    if($("ovEquip").classList.contains("show")) renderEquipPicker();
-    if($("ovHeal").classList.contains("show")) renderHealPicker();
+    // 開いている人材選び画面も最新の所持数・HPで描き直す（続けて使えるように）
+    if($("ovPick").classList.contains("show")) renderPick();
     if($("ovExpel").classList.contains("show")) renderExpelSheet();
   });
   db.ref("buildings").on("value",s=>{
@@ -1932,10 +1932,6 @@ function sortUnits(units, sortKey){
 function renderUnits(){
   if(!me) return;
   renderPresets();
-  const tap='style="text-decoration:underline dotted; cursor:pointer"';
-  $("itemLine").innerHTML="回復: "+Object.entries(ITEMS).map(([k,it])=>`<span ${tap} onclick="showDesc('item','${k}')">${it.name}×${me.items?.[k]||0}</span>`).join("　");
-  $("equipLine").innerHTML="装備: "+Object.entries(EQUIPS).map(([k,e])=>`<span ${tap} onclick="showDesc('equip','${k}')">${e.name}×${me.equips?.[k]||0}</span>`).join("　");
-  $("matLine").innerHTML="素材: "+Object.entries(MATERIALS).map(([k,n])=>`<span ${tap} onclick="showDesc('mat','${k}')">${n}×${me.materials?.[k]||0}</span>`).join("　");
   $("sortLine").innerHTML="並び: "+Object.entries(UNIT_SORTS).map(([k,n])=>
     `<button class="mini ${unitSort===k?"sel":""}" onclick="setUnitSort('${k}')">${n}</button>`).join("");
   $("elmLine").innerHTML="属性: "+`<button class="mini ${unitFilter==="all"?"sel":""}" onclick="setUnitFilter('all')">全部</button>`+
@@ -1961,9 +1957,9 @@ function renderUnits(){
     const d=document.createElement("div"); d.className="card ucard";
     const sk=skillDef(u);
     const bname=u.defendingAt?(buildings[u.defendingAt]?.name||u.defendingAt):null;
-    const eqBtn=`<button class="mini" onclick="openEquipPicker('${id}')">🎒 ${u.equip?"装備を変える":"装備する"}</button>`;
-    const healBtn=`<button class="mini" ${u.hp>=u.maxHp?"disabled":""} onclick="openHealPicker('${id}')">💊 回復する</button>`;
     const expelBtn=`<div class="expelrow"><button class="mini danger" onclick="openExpel('${id}')">🚪 放校する（💴${expelYen(u)}円）</button></div>`;
+    // 回復・装備は持ち物タブへ移したので、ここからは案内だけ出す
+    const toItems=`<button class="mini" onclick="switchTab('items')">🎒 持ち物から回復・装備する</button>`;
     // 編集中はメンバー選択が主目的。それ以外は右端にタップ開閉の目印を出す
     const rightTop=presetEdit!==null
       ? `<button class="mini ${presetSel.has(id)?"sel":""}" style="margin-left:auto" data-pre="${id}" onclick="togPre('${id}')">${presetSel.has(id)?"✔選択中":"選ぶ"}</button>`
@@ -1977,7 +1973,7 @@ function renderUnits(){
       ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
       <div class="uactions">${u.defendingAt?'<div class="note">回復・装備変更・放校するには呼び戻してね</div>':
-        `<div class="row" style="margin:6px 0 0">${healBtn}${eqBtn}</div>${expelBtn}`}</div>`;
+        `<div class="row" style="margin:6px 0 0">${toItems}</div>${expelBtn}`}</div>`;
     wrap.appendChild(d);
   });
 }
@@ -1993,41 +1989,6 @@ function setEquip(uid,k){
   db.ref(`players/${PID}/units/${uid}/equip`).set(k||null)
     .then(()=>toast(k?`${u.name} に ${EQUIPS[k].name} を装備！`:"装備をはずした")).catch(dbErr);
 }
-// 装備ピッカー（人材カードを膨らませないよう、ボタン→スクロールで選ぶ別画面にした）
-let equipPickUid=null;
-function openEquipPicker(uid){
-  const u=me.units?.[uid]; if(!u) return;
-  if(u.defendingAt){ toast("防衛中は装備を変えられないよ"); return; }
-  equipPickUid=uid;
-  $("ovEquip").classList.add("show");
-  renderEquipPicker();
-}
-function renderEquipPicker(){
-  const u=me.units?.[equipPickUid]; if(!u){ closeOv("ovEquip"); return; }
-  let html=`<h2>🎒 装備を選ぶ <button class="xbtn" onclick="closeOv('ovEquip')">閉じる</button></h2>
-    <div class="sub">${esc(u.name)}　攻${eqAtk(u)}／守${eqDef(u)}</div>
-    <div class="card"><div class="top"><b>装備なし</b>${
-      !u.equip?'<span class="badge" style="margin-left:auto">✔いま装備中</span>'
-        :'<button class="mini" style="margin-left:auto" onclick="pickEquip(null)">はずす</button>'}</div></div>`;
-  // 1つも持っていない装備は候補に出さない（いま装備中のものは残す）
-  const list=Object.entries(EQUIPS).filter(([k])=>(me.equips?.[k]||0)>0 || u.equip===k);
-  if(!list.length) html+=`<p class="note">まだ装備を持っていない。バトルでまれにドロップするよ。</p>`;
-  list.forEach(([k,e])=>{
-    const free=freeEquips(k), owned=me.equips?.[k]||0, on=u.equip===k;
-    html+=`<div class="card"><div class="top"><b>${e.name}</b>${
-      on?'<span class="badge" style="margin-left:auto">✔いま装備中</span>'
-        :`<button class="mini" style="margin-left:auto" ${free<1?"disabled":""} onclick="pickEquip('${k}')">装備する</button>`}</div>
-      <div class="stat">効果: ${e.desc}　／　所持 ${owned}（空き ${free}）</div>
-      <div class="note">${e.lore}</div></div>`;
-  });
-  $("equipSheet").innerHTML=html;
-}
-function pickEquip(k){
-  const uid=equipPickUid;
-  if(k && freeEquips(k)<1){ toast("その装備は空きがないよ"); return; }
-  setEquip(uid,k);
-  closeOv("ovEquip");
-}
 function useItem(uid,ik){
   const u=me.units[uid];
   if(!u||u.defendingAt||(me.items?.[ik]||0)<1||u.hp>=u.maxHp) return;
@@ -2037,39 +1998,95 @@ function useItem(uid,ik){
   up[`players/${PID}/items/${ik}`]=INC(-1);
   db.ref().update(up).then(()=>toast(`${u.name} が回復！(${u.hp}→${nh})`)).catch(dbErr);
 }
-// 回復ピッカー（装備と同じくボタン→スクロールで選ぶ別画面。連続で使えるよう開いたまま）
-let healPickUid=null;
-function openHealPicker(uid){
-  const u=me.units?.[uid]; if(!u) return;
-  if(u.defendingAt){ toast("防衛中は回復できないよ。呼び戻してね"); return; }
-  healPickUid=uid;
-  $("ovHeal").classList.add("show");
-  renderHealPicker();
-}
-function renderHealPicker(){
-  const u=me.units?.[healPickUid]; if(!u){ closeOv("ovHeal"); return; }
-  const hpr=u.hp/u.maxHp;
-  let html=`<h2>💊 回復する <button class="xbtn" onclick="closeOv('ovHeal')">閉じる</button></h2>
-    <div class="sub">${esc(u.name)}</div>
-    <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
-    <div class="note" style="margin-bottom:8px;">HP ${u.hp}/${u.maxHp}${u.hp>=u.maxHp?"　✨満タン":""}</div>`;
-  // 1つも持っていない回復アイテムは候補に出さない
-  const list=Object.entries(ITEMS).filter(([k])=>(me.items?.[k]||0)>0);
-  if(!list.length) html+=`<p class="note">回復アイテムを持っていない。建物の🎁配給でもらえるよ。</p>`;
-  list.forEach(([k,it])=>{
-    const owned=me.items?.[k]||0, full=u.hp>=u.maxHp;
-    html+=`<div class="card"><div class="top"><b>${it.name}</b>
-      <button class="mini" style="margin-left:auto" ${full?"disabled":""} onclick="pickHeal('${k}')">使う</button></div>
-      <div class="stat">回復量 ${it.heal>=9999?"全回復":"+"+it.heal}　／　所持 ${owned}</div>
+
+/* =============== 持ち物タブ =============== */
+function renderItems(){
+  const box=$("itemsBox"); if(!box||!me) return;
+  const heals=Object.entries(ITEMS).filter(([k])=>(me.items?.[k]||0)>0);
+  const equips=Object.entries(EQUIPS).filter(([k])=>(me.equips?.[k]||0)>0);
+  let html=`<h3 style="font-size:13px; margin:10px 0 4px;">💊 回復アイテム</h3>`;
+  if(!heals.length) html+=`<p class="note">回復アイテムを持っていない。建物の🎁配給でもらえるよ。</p>`;
+  heals.forEach(([k,it])=>{
+    const n=me.items[k];
+    html+=`<div class="card itemcard" onclick="openPick('heal','${k}')"><div class="top"><b>${it.name}</b>
+      <span class="badge" style="margin-left:auto">×${n}</span><span class="exp">▸</span></div>
+      <div class="stat">回復量 ${it.heal>=9999?"全回復":"+"+it.heal}</div>
       <div class="note">${it.desc}</div></div>`;
   });
-  $("healSheet").innerHTML=html;
+  html+=`<h3 style="font-size:13px; margin:14px 0 4px;">🎒 装備</h3>`;
+  if(!equips.length) html+=`<p class="note">まだ装備を持っていない。バトルでまれにドロップするよ。</p>`;
+  equips.forEach(([k,e])=>{
+    const owned=me.equips[k], free=freeEquips(k);
+    html+=`<div class="card itemcard" onclick="openPick('equip','${k}')"><div class="top"><b>${e.name}</b>
+      <span class="badge" style="margin-left:auto">×${owned}（空き${free}）</span><span class="exp">▸</span></div>
+      <div class="stat">効果: ${e.desc}</div>
+      <div class="note">${e.lore}</div></div>`;
+  });
+  html+=`<h3 style="font-size:13px; margin:14px 0 4px;">🔩 素材 <span class="note">建物の強化に使うよ・タップで説明</span></h3>
+    <div class="matline">`+Object.entries(MATERIALS).map(([k,n])=>
+      `<span style="text-decoration:underline dotted; cursor:pointer" onclick="showDesc('mat','${k}')">${n}×${me.materials?.[k]||0}</span>`).join("")+`</div>`;
+  box.innerHTML=html;
 }
-function pickHeal(ik){
-  const u=me.units?.[healPickUid];
-  if(!u||(me.items?.[ik]||0)<1) return;
-  if(u.hp>=u.maxHp){ toast("もう満タンだよ"); return; }
-  useItem(healPickUid, ik); // 使用後はsubscribeの再描画でピッカーも更新される
+
+/* ---- 持ち物 → 使う人材を選ぶ（数があるぶんは開いたまま続けて使える） ---- */
+let pickMode=null, pickKey=null;
+function openPick(mode,k){
+  pickMode=mode; pickKey=k;
+  $("ovPick").classList.add("show");
+  renderPick();
+}
+// いま何個使えるか（回復は所持数、装備は空き数）
+function pickStock(){
+  if(pickMode==="heal") return me?.items?.[pickKey]||0;
+  if(pickMode==="equip") return freeEquips(pickKey);
+  return 0;
+}
+function renderPick(){
+  if(!pickMode||!me) return;
+  const heal=pickMode==="heal";
+  const def=heal?ITEMS[pickKey]:EQUIPS[pickKey];
+  if(!def){ closeOv("ovPick"); return; }
+  const stock=pickStock();
+  const close=`<button class="xbtn" onclick="closeOv('ovPick')">閉じる</button>`;
+  let html=`<h2>${heal?"💊":"🎒"} ${def.name} <span class="badge">のこり${stock}</span>${close}</h2>
+    <div class="sub">${heal?`回復量 ${def.heal>=9999?"全回復":"+"+def.heal}`:`効果: ${def.desc}`}　／　使う人材をタップしてね</div>`;
+  if(stock<1){
+    html+=`<p class="note">${heal?"使いきったよ。":"空きがないよ。ほかの人材から外すと使えるようになるよ。"}</p>`;
+    $("pickSheet").innerHTML=html;
+    return;
+  }
+  // 防衛中は回復も装備もできないので、候補から外して理由だけ伝える
+  const all=Object.entries(me.units||{});
+  const guarding=all.filter(([id,u])=>u.defendingAt).length;
+  let list=all.filter(([id,u])=>!u.defendingAt);
+  // 回復は傷の深い順、装備はランク順（強い人材に付けたくなるはず）
+  if(heal) list.sort((a,b)=>(a[1].hp/a[1].maxHp)-(b[1].hp/b[1].maxHp));
+  else list=sortUnits(list,"rank");
+  if(!list.length) html+=`<p class="note">使える人材がいない${guarding?"（全員防衛中）":""}。</p>`;
+  list.forEach(([id,u])=>{
+    const hpr=u.hp/u.maxHp;
+    let dis="", tag="";
+    if(heal && u.hp>=u.maxHp){ dis="disabled"; tag='<span class="badge" style="margin-left:auto">✨満タン</span>'; }
+    else if(!heal && u.equip===pickKey){ dis="disabled"; tag='<span class="badge terb" style="margin-left:auto">✔装備中</span>'; }
+    else tag=`<button class="mini sel" style="margin-left:auto" onclick="usePickOn('${id}')">${heal?"使う":"装備する"}</button>`;
+    html+=`<div class="card ${dis?"pickoff":""}"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>${tag}</div>
+      <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</div></div>`;
+  });
+  if(guarding) html+=`<p class="note">🛡防衛中の${guarding}体は、呼び戻してからじゃないと使えないよ。</p>`;
+  $("pickSheet").innerHTML=html;
+}
+function usePickOn(uid){
+  const u=me.units?.[uid]; if(!u) return;
+  if(pickStock()<1){ renderPick(); return; }
+  if(pickMode==="heal"){
+    if(u.hp>=u.maxHp){ toast("もう満タンだよ"); return; }
+    useItem(uid, pickKey);
+  }else{
+    if(u.equip===pickKey) return;
+    setEquip(uid, pickKey);
+  }
+  // 使ったあとはsubscribeの再描画でこの画面も更新される（のこりがあれば続けて使える）
 }
 
 /* ---- 放校（人材を手放す。装備は返却され、経費削減でお金がもらえる） ---- */
@@ -2144,6 +2161,7 @@ function switchTab(name){
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   $("tab-"+name).classList.add("active");
   if(name==="rank") fetchRank();
+  if(name==="items") renderItems();
 }
 document.querySelectorAll("#bar button").forEach(b=>{ b.onclick=()=>switchTab(b.dataset.tab); });
 // ヘッダーの🪙💴/🍁からも関連タブへ飛べる
@@ -2157,8 +2175,7 @@ $("mapLegend").innerHTML=Object.entries(FACTIONS).map(([k,f])=>
   `<span class="lchip"><i style="background:${f.color}"></i>${k}科</span>`).join("")
   +`<span class="lchip"><i style="background:#888"></i>中立</span>`;
 $("ovConfirm").onclick=e=>{ if(e.target.id==="ovConfirm") closeOv("ovConfirm"); };
-$("ovEquip").onclick=e=>{ if(e.target.id==="ovEquip") closeOv("ovEquip"); };
-$("ovHeal").onclick=e=>{ if(e.target.id==="ovHeal") closeOv("ovHeal"); };
+$("ovPick").onclick=e=>{ if(e.target.id==="ovPick") closeOv("ovPick"); };
 $("ovExpel").onclick=e=>{ if(e.target.id==="ovExpel") closeOv("ovExpel"); };
 $("ovEvent").onclick=e=>{ if(e.target.id==="ovEvent") closeOv("ovEvent"); };
 $("ovGachaInfo").onclick=e=>{ if(e.target.id==="ovGachaInfo") closeOv("ovGachaInfo"); };
