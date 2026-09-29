@@ -731,7 +731,7 @@ const MISSIONS = [
   {id:"ration",  name:"🎁 配給を2回受け取る",         goal:2, reward:100},
   {id:"gacha",   name:"🎰 ガシャを1回まわす",         goal:1, reward:100},
   {id:"upgrade", name:"⬆ 建物を1回強化する",          goal:1, reward:100},
-  {id:"defend",  name:"🛡 引きこもりを1体配置する",   goal:1, reward:100},
+  {id:"defend",  name:"🛡 警備員を1体配置する",   goal:1, reward:100},
 ];
 
 /* =============== 初期化 =============== */
@@ -1101,7 +1101,7 @@ function renderBuilding(bid){
     <h2>${def.ico} ${esc(b.name)}
       <span class="badge" style="${f?`background:${f.color};color:${f.tc}`:""}">${f?f.short+"科の"+(b.type==="base"?"拠点":"施設"):"中立"}</span>
       <button class="xbtn" onclick="closeOv('ovB')">閉じる</button></h2>
-    <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 引きこもり ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
+    <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 警備員 ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
     ${ter?`<div class="sub">${terrainNote(bid)}</div>`:""}
     <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
     <div class="note">HP ${b.hp} / ${b.maxHp}</div>`;
@@ -1151,7 +1151,7 @@ function viewDefend(){
       html+=`<div class="card"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${tb?`<span class="badge terb">⛰×${TERRAIN_MULT}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b></div>
         <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}${tb?`→<b>${Math.round(eqAtk(u)*TERRAIN_MULT)}</b>`:""}　守${eqDef(u)}${tb?`→<b>${Math.round(eqDef(u)*TERRAIN_MULT)}</b>`:""}</div>
         ${sk?`<div class="note skline">✨${sk.ico}${sk.name}（${sk.desc}）</div>`:""}
-        <button class="mini" onclick="placeDef('${id}')">引きこもりとして置く</button></div>`;
+        <button class="mini" onclick="placeDef('${id}')">警備員として置く</button></div>`;
     });
   }
   $("bSub").innerHTML=html;
@@ -1163,7 +1163,7 @@ function placeDef(uid){
   const up={};
   up[`buildings/${curB}/defenders/${PID}`]={pid:PID, unitId:uid, name:u.name, rank:u.rank, hp:u.hp, maxHp:u.maxHp, atk:eqAtk(u), def:eqDef(u), elm:u.elm||null, pname:me.name};
   up[`players/${PID}/units/${uid}/defendingAt`]=curB;
-  db.ref().update(up).then(()=>{ toast("引きこもり配置！"); missionProg("defend"); }).catch(dbErr);
+  db.ref().update(up).then(()=>{ toast("警備員配置！"); missionProg("defend"); }).catch(dbErr);
 }
 function recallDef(){
   const b=buildings[curB], d=(b.defenders||{})[PID]; if(!d) return;
