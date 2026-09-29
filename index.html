@@ -945,14 +945,18 @@ function fetchRank(){
 }
 
 /* =============== 学科の倍率 =============== */
+// 建物1つが持ち主の学科の倍率に足す値（拠点/施設の基本値＋強化Lv、HPが減ると下がる）
+function bldContrib(b){
+  const base = b.type==="base"?0.3:0.15;
+  const lv = 0.05*((b.atkLv-1)+(b.defLv-1));
+  const hpr = 0.5+0.5*(b.hp/b.maxHp);
+  return (base+lv)*hpr;
+}
 function multiplier(fac){
   let m=1;
   for(const [id,b] of Object.entries(buildings)){
     if(b.owner!==fac) continue;
-    const base = b.type==="base"?0.3:0.15;
-    const lv = 0.05*((b.atkLv-1)+(b.defLv-1));
-    const hpr = 0.5+0.5*(b.hp/b.maxHp);
-    m += (base+lv)*hpr;
+    m += bldContrib(b);
   }
   return Math.round(m*100)/100;
 }
@@ -1123,7 +1127,7 @@ function renderBuilding(bid){
     <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 警備員 ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
     ${ter?`<div class="sub">${terrainNote(bid)}</div>`:""}
     <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
-    <div class="note">HP ${b.hp} / ${b.maxHp}</div>`;
+    <div class="note">HP ${b.hp} / ${b.maxHp}${b.owner?`（倍率+${bldContrib(b).toFixed(2)}倍）`:""}</div>`;
 
   if(defs.length){
     html+=`<div class="note" style="margin-top:6px;">🛡 防衛中:</div>`;
