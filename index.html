@@ -688,9 +688,13 @@ Object.values(UNIT_POOL).flat().concat(Object.values(DEPT_HEADS)).forEach(b=>{
 const UNIT_SPD = {};
 Object.values(UNIT_POOL).flat().concat(Object.values(DEPT_HEADS)).forEach(b=>{ UNIT_SPD[b.name]=b.spd; });
 const spdOf = u => u?.spd ?? UNIT_SPD[u?.name] ?? 15;
-// 回避率 = 素早さ × 0.6%（上限40%）。装備やスキルの回避とは別に、まず素早さで判定する
-const DODGE_PER_SPD = 0.006, DODGE_MAX = 0.4;
-const dodgeRate = u => Math.min(DODGE_MAX, spdOf(u)*DODGE_PER_SPD);
+// 回避率 =（守る側の素早さ − 攻撃側の素早さ）× 0.8%（0〜40%）。相手より速いほど避けやすく、同じか遅ければ避けられない。
+// スキルの回避とは別に、まず素早さで判定する。建物の反撃は素早さBUILDING_SPDの相手として扱う
+const DODGE_PER_SPD = 0.008, DODGE_MAX = 0.4, BUILDING_SPD = 10;
+const dodgeRate = (def, atk) => {
+  const a = atk ? spdOf(atk) : BUILDING_SPD;
+  return Math.max(0, Math.min(DODGE_MAX, (spdOf(def)-a)*DODGE_PER_SPD));
+};
 // ユニット（手持ち・防衛中どちらの形式でも）からスキル定義を引く
 const skillDef = u => { const id=UNIT_SKILL[u?.name]; return id ? {id, ...SKILLS[id]} : null; };
 const GACHA_RATE = [["F",50],["C",30],["B",15],["A",5]];
@@ -1352,10 +1356,10 @@ function skCritRoll(u){
   return Math.random()<rate?mult:1;
 }
 // ダメージを与える（回避・食いしばり系はここで発動）。実ダメージとログ用の注記を返す
-function skHit(t, dmg){
+function skHit(t, dmg, attacker){
   const s=skillDef(t); let note="";
   // 素早さによる回避（当たらなかった攻撃はダメージ0）
-  if(Math.random()<dodgeRate(t)) return {dmg:0, note:`（💨素早さでひらりと回避！）`};
+  if(Math.random()<dodgeRate(t, attacker)) return {dmg:0, note:`（💨素早さでひらりと回避！）`};
   if(s?.fx==="dodge" && Math.random()<s.rate){
     if(s.keep<=0) return {dmg:0, note:`（${s.ico}${s.name}でひらりと回避！）`};
     dmg=Math.max(1,Math.round(dmg*s.keep)); note=`（${s.ico}${s.name}で受け流した！）`;
@@ -1435,7 +1439,7 @@ function runBattle(bid,b){
         const mult=elmMult(u.elm,tgt.elm), crit=skCritRoll(u);
         const raw=Math.max(1,Math.round((u.bAtk*tm(u.elm)*skAtkMult(u,A,r)-tgt.bDef*tm(tgt.elm)*skDefMult(tgt,D))*mult*crit));
         const hpBefore=tgt.hp;
-        const hit=skHit(tgt,raw);
+        const hit=skHit(tgt,raw,u);
         dmgDealt+=hpBefore-tgt.hp; // 実際に削れたぶんだけ数える（回避・踏みとどまりを反映）
         log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(u.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
         if(tgt.hp<=0){ kills++; mats+=2; u.skKills=(u.skKills||0)+1; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
@@ -1467,7 +1471,7 @@ function runBattle(bid,b){
       if(!t||t.hp<=0) continue;
       const mult=elmMult(d.elm,t.elm), crit=skCritRoll(d);
       const raw=Math.max(1,Math.round((d.bAtk*tm(d.elm)*skAtkMult(d,D,r)-t.bDef*tm(t.elm)*skDefMult(t,A))*mult*crit));
-      const hit=skHit(t,raw);
+      const hit=skHit(t,raw,d);
       log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
       if(t.hp<=0){ koyoGain[d.pid]=(koyoGain[d.pid]||0)+evK; d.skKills=(d.skKills||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
     }
@@ -1477,7 +1481,7 @@ function runBattle(bid,b){
       if(t2.length){
         const t=t2[Math.floor(Math.random()*t2.length)];
         const raw=Math.max(1,Math.round(bAtk-t.bDef*tm(t.elm)*skDefMult(t,A)));
-        const hit=skHit(t,raw);
+        const hit=skHit(t,raw,null);
         log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${hit.dmg}ダメージ${hit.note}`});
         if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
       }
@@ -1689,7 +1693,7 @@ function showGachaResult(u, paidKind){
   $("gachaSheet").innerHTML=`<h2>🎰 ガシャ結果 <button class="xbtn" onclick="closeOv('ovGacha')">閉じる</button></h2>
     <div class="sub">${gachaCostLabel(paidKind)}を使った</div>
     <div class="card reveal"><div class="top"><span class="rank ${u.rank}">${u.rank}</span><span class="badge">${elmIco(u.elm)}</span><b>${esc(u.name)}</b></div>
-      <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}　速 ${spdOf(u)}（回避${Math.round(dodgeRate(u)*100)}%）</div>
+      <div class="stat">HP ${u.hp}　攻 ${u.atk}　守 ${u.def}　速 ${spdOf(u)}</div>
       ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}${u.rank==="A"?'<div style="color:var(--gold)">✨ Aランク！！ ✨</div>':""}</div>
     <div class="row">
@@ -1718,7 +1722,7 @@ function renderGachaInfo(){
     <div class="card"><div class="top"><b>💴お金</b></div>
       <div class="stat">バイトコインが無いときは${YEN_PER_GACHA}円で回せる。ミッション・バトル・放校でたまるよ</div></div>
     <div class="card"><div class="top"><b>排出率</b></div>${rates}
-      <div class="note">ステータス（HP・攻・守・速）には個体差（±10%）があるよ。速＝素早さ。高いほど攻撃を回避しやすい（回避率＝素早さ×0.6%・上限40%）</div>
+      <div class="note">ステータス（HP・攻・守・速）には個体差（±10%）があるよ。速＝素早さ。相手より速いほど攻撃を回避しやすい（回避率＝自分と相手の素早さの差×0.8%・最大40%。同じか遅いと避けられない）</div>
       ${ev?`<div class="note" style="color:var(--gold)">🎰 モーニングガシャ開催中！ Aランクの率が${EVENT_GACHA_A_MULT}倍だよ</div>`:""}</div>`;
 }
 
@@ -1982,7 +1986,7 @@ function renderUnits(){
         ${bname?`<span class="badge">🛡${esc(bname)}で防衛中</span>`:""}${u.hp<=0?'<span class="badge" style="color:var(--danger)">😵気絶</span>':""}
         ${rightTop}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
-      <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}　速 ${spdOf(u)}（回避${Math.round(dodgeRate(u)*100)}%）</div>
+      <div class="stat">HP ${u.hp}/${u.maxHp}　攻 ${u.atk}${eqAtk(u)!==u.atk?`→<b>${eqAtk(u)}</b>`:""}　守 ${u.def}${eqDef(u)!==u.def?`→<b>${eqDef(u)}</b>`:""}　速 ${spdOf(u)}</div>
       ${sk?`<div class="note skline">✨スキル「${sk.ico}${sk.name}」: ${sk.desc}</div>`:""}
       ${UNIT_DESC[u.name]?`<div class="note">${UNIT_DESC[u.name]}</div>`:""}
       <div class="uactions">${u.defendingAt?'<div class="note">回復・装備変更・放校するには呼び戻してね</div>':
