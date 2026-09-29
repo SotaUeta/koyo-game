@@ -290,8 +290,11 @@ body:has(.overlay.show) #toasts{bottom:auto; top:56px;}
 /* 持ち物カードはタップで「使う人材を選ぶ」画面へ */
 .itemcard{cursor:pointer;}
 .itemcard .exp{color:var(--dim); margin-left:4px;}
-/* 使えない人材（満タン・装備中）は薄く出して、理由が分かるようにしておく */
+/* 使えない人材（満タン・空きなし）は薄く出して、理由が分かるようにしておく */
 .card.pickoff{opacity:.45;}
+/* 「✔装備中」＋「はずす」が並んでも押せるよう、名前だけ縮める */
+#pickSheet .card .top b{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#pickSheet .card .top .mini,#pickSheet .card .top .badge{flex:0 0 auto;}
 
 /* ===== 人材カード：タップで放校などの操作を開く ===== */
 .ucard{cursor:pointer;}
@@ -2029,7 +2032,8 @@ function renderItems(){
 }
 
 /* ---- 持ち物 → 使う人材を選ぶ（数があるぶんは開いたまま続けて使える） ---- */
-let pickMode=null, pickKey=null;
+let pickMode=null, pickKey=null, pickSort="rank";
+function setPickSort(k){ pickSort=k; renderPick(); }
 function openPick(mode,k){
   pickMode=mode; pickKey=k;
   $("ovPick").classList.add("show");
@@ -2049,27 +2053,43 @@ function renderPick(){
   const stock=pickStock();
   const close=`<button class="xbtn" onclick="closeOv('ovPick')">閉じる</button>`;
   let html=`<h2>${heal?"💊":"🎒"} ${def.name} <span class="badge">のこり${stock}</span>${close}</h2>
-    <div class="sub">${heal?`回復量 ${def.heal>=9999?"全回復":"+"+def.heal}`:`効果: ${def.desc}`}　／　使う人材をタップしてね</div>`;
-  if(stock<1){
-    html+=`<p class="note">${heal?"使いきったよ。":"空きがないよ。ほかの人材から外すと使えるようになるよ。"}</p>`;
+    <div class="sub">${heal?`回復量 ${def.heal>=9999?"全回復":"+"+def.heal}`:`効果: ${def.desc}`}　／　${heal?"使う人材をタップしてね":"付ける人材をタップ・装備中をもう一度タップで外せるよ"}</div>`;
+  // 回復は使いきったら終わり。装備は空きが無くても「はずす」ために一覧を出す
+  if(heal && stock<1){
+    html+=`<p class="note">使いきったよ。</p>`;
     $("pickSheet").innerHTML=html;
     return;
   }
+  // 装備は人材タブと同じ並び替えができる
+  if(!heal) html+=`<div class="matline">並び: `+Object.entries(UNIT_SORTS).map(([k,n])=>
+    `<button class="mini ${pickSort===k?"sel":""}" onclick="setPickSort('${k}')">${n}</button>`).join("")+`</div>`;
+  if(!heal && stock<1) html+=`<p class="note">空きがないよ。「はずす」で空けると、ほかの人材に付けられるよ。</p>`;
   // 防衛中は回復も装備もできないので、候補から外して理由だけ伝える
   const all=Object.entries(me.units||{});
   const guarding=all.filter(([id,u])=>u.defendingAt).length;
   let list=all.filter(([id,u])=>!u.defendingAt);
-  // 回復は傷の深い順、装備はランク順（強い人材に付けたくなるはず）
+  // 回復は傷の深い順。装備は選んだ並び順
   if(heal) list.sort((a,b)=>(a[1].hp/a[1].maxHp)-(b[1].hp/b[1].maxHp));
-  else list=sortUnits(list,"rank");
+  else list=sortUnits(list,pickSort);
   if(!list.length) html+=`<p class="note">使える人材がいない${guarding?"（全員防衛中）":""}。</p>`;
   list.forEach(([id,u])=>{
     const hpr=u.hp/u.maxHp;
     let dis="", tag="";
-    if(heal && u.hp>=u.maxHp){ dis="disabled"; tag='<span class="badge" style="margin-left:auto">✨満タン</span>'; }
-    else if(!heal && u.equip===pickKey){ dis="disabled"; tag='<span class="badge terb" style="margin-left:auto">✔装備中</span>'; }
-    else tag=`<button class="mini sel" style="margin-left:auto" onclick="usePickOn('${id}')">${heal?"使う":"装備する"}</button>`;
-    html+=`<div class="card ${dis?"pickoff":""}"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${u.equip?`<span class="badge">${EQUIPS[u.equip].name}</span>`:""}<b>${esc(u.name)}</b>${tag}</div>
+    if(heal){
+      if(u.hp>=u.maxHp){ dis="disabled"; tag='<span class="badge" style="margin-left:auto">✨満タン</span>'; }
+      else tag=`<button class="mini sel" style="margin-left:auto" onclick="usePickOn('${id}')">使う</button>`;
+    }else if(u.equip===pickKey){
+      // もう一度タップで外せる
+      tag=`<span class="badge terb" style="margin-left:auto">✔装備中</span>
+        <button class="mini" onclick="usePickOn('${id}')">はずす</button>`;
+    }else if(stock<1){
+      dis="disabled"; tag='<span class="badge" style="margin-left:auto">空きなし</span>';
+    }else{
+      tag=`<button class="mini sel" style="margin-left:auto" onclick="usePickOn('${id}')">装備する</button>`;
+    }
+    // いま選んでいる装備そのものは「✔装備中」で分かるので、バッジは重ねない（名前を出す幅を空ける）
+    const eqBadge = u.equip && u.equip!==pickKey ? `<span class="badge">${EQUIPS[u.equip].name}</span>` : "";
+    html+=`<div class="card ${dis?"pickoff":""}"><div class="top"><span class="rank ${u.rank}">${u.rank}</span>${u.elm?`<span class="badge">${elmIco(u.elm)}</span>`:""}${eqBadge}<b>${esc(u.name)}</b>${tag}</div>
       <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
       <div class="stat">HP ${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}</div></div>`;
   });
@@ -2078,12 +2098,13 @@ function renderPick(){
 }
 function usePickOn(uid){
   const u=me.units?.[uid]; if(!u) return;
+  // 装備中をもう一度タップ＝はずす（空きが0でもできる）
+  if(pickMode==="equip" && u.equip===pickKey){ setEquip(uid,null); return; }
   if(pickStock()<1){ renderPick(); return; }
   if(pickMode==="heal"){
     if(u.hp>=u.maxHp){ toast("もう満タンだよ"); return; }
     useItem(uid, pickKey);
   }else{
-    if(u.equip===pickKey) return;
     setEquip(uid, pickKey);
   }
   // 使ったあとはsubscribeの再描画でこの画面も更新される（のこりがあれば続けて使える）
