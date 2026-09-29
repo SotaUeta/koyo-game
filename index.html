@@ -616,6 +616,9 @@ function terrainNote(bid){
 // クリティカル: ときどき（15%）ダメージ2倍。💥テンションMAXタイムとスキルで変動（判定はskCritRoll）
 const CRIT_RATE = 0.15, CRIT_MULT = 2;
 
+// ダメージの基本形: 攻 − 守÷2（地形・スキルは攻/守に、属性・クリティカルは結果に掛ける。最低1）
+const baseDmg = (atk, def) => atk - def/2;
+
 // スキル: 人材の種類（名前）ごとに1つ。バトルで自動発動する。
 // エンジンはfxだけを見るので、名前・説明が違っても同じfxなら同じ動きになる
 const SKILLS = {
@@ -1460,7 +1463,7 @@ function runBattle(bid,b){
       const tgt=D.find(d=>d.hp>0);
       if(tgt){
         const mult=elmMult(u.elm,tgt.elm), crit=skCritRoll(u);
-        const raw=Math.max(1,Math.round((u.bAtk*tm(u.elm)*skAtkMult(u,A,r)-tgt.bDef*tm(tgt.elm)*skDefMult(tgt,D))*mult*crit));
+        const raw=Math.max(1,Math.round(baseDmg(u.bAtk*tm(u.elm)*skAtkMult(u,A,r), tgt.bDef*tm(tgt.elm)*skDefMult(tgt,D))*mult*crit));
         const hpBefore=tgt.hp;
         const hit=skHit(tgt,raw,u);
         dmgDealt+=hpBefore-tgt.hp; // 実際に削れたぶんだけ数える（回避・踏みとどまりを反映）
@@ -1468,7 +1471,7 @@ function runBattle(bid,b){
         if(tgt.hp<=0){ kills++; mats+=2; u.skKills=(u.skKills||0)+1; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
       }else{
         const crit=skCritRoll(u);
-        const dmg=Math.max(1,Math.round((u.bAtk*tm(u.elm)*skAtkMult(u,A,r)-bDef)*crit));
+        const dmg=Math.max(1,Math.round(baseDmg(u.bAtk*tm(u.elm)*skAtkMult(u,A,r), bDef)*crit));
         const cr=crit>1?"（💥クリティカル！）":"";
         buildingHits++; mats+=1;
         const hpBefore=bhp;
@@ -1493,7 +1496,7 @@ function runBattle(bid,b){
       const t=aliveA[Math.floor(Math.random()*aliveA.length)];
       if(!t||t.hp<=0) continue;
       const mult=elmMult(d.elm,t.elm), crit=skCritRoll(d);
-      const raw=Math.max(1,Math.round((d.bAtk*tm(d.elm)*skAtkMult(d,D,r)-t.bDef*tm(t.elm)*skDefMult(t,A))*mult*crit));
+      const raw=Math.max(1,Math.round(baseDmg(d.bAtk*tm(d.elm)*skAtkMult(d,D,r), t.bDef*tm(t.elm)*skDefMult(t,A))*mult*crit));
       const hit=skHit(t,raw,d);
       log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
       if(t.hp<=0){ koyoGain[d.pid]=(koyoGain[d.pid]||0)+evK; d.skKills=(d.skKills||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
@@ -1503,7 +1506,7 @@ function runBattle(bid,b){
       const t2=A.filter(u=>u.hp>0);
       if(t2.length){
         const t=t2[Math.floor(Math.random()*t2.length)];
-        const raw=Math.max(1,Math.round(bAtk-t.bDef*tm(t.elm)*skDefMult(t,A)));
+        const raw=Math.max(1,Math.round(baseDmg(bAtk, t.bDef*tm(t.elm)*skDefMult(t,A))));
         const hit=skHit(t,raw,null);
         log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${hit.dmg}ダメージ${hit.note}`});
         if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
