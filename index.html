@@ -945,11 +945,17 @@ function fetchRank(){
 }
 
 /* =============== 学科の倍率 =============== */
+// いまの建物HP。拠点は最後のバトルから時間で自然回復（2%/分）する分を足す（DBには書かず毎回計算）
+function curHp(b){
+  if(b.type!=="base") return b.hp;
+  const regen=Math.floor((Date.now()-(b.lastBattleAt||Date.now()))/60000)*Math.floor(b.maxHp*0.02);
+  return Math.min(b.maxHp, b.hp+Math.max(0,regen));
+}
 // 建物1つが持ち主の学科の倍率に足す値（拠点/施設の基本値＋強化Lv、HPが減ると下がる）
 function bldContrib(b){
   const base = b.type==="base"?0.3:0.15;
   const lv = 0.05*((b.atkLv-1)+(b.defLv-1));
-  const hpr = 0.5+0.5*(b.hp/b.maxHp);
+  const hpr = 0.5+0.5*(curHp(b)/b.maxHp);
   return (base+lv)*hpr;
 }
 function multiplier(fac){
@@ -1069,7 +1075,7 @@ function renderMap(){
     el.classList.toggle("battling", Date.now()-(b.lastBattleAt||0)<60000);
     el.classList.toggle("far", !inRange(def));
     // 建物HPバー（攻め時が一目で分かる）
-    const hpr=Math.max(0,Math.min(1,b.hp/b.maxHp));
+    const hpr=Math.max(0,Math.min(1,curHp(b)/b.maxHp));
     const bar=el.querySelector(".mhp i");
     bar.style.width=(hpr*100)+"%";
     bar.style.background=hpr<0.3?"#e8394a":hpr<0.6?"#f2a005":"#2fa043";
@@ -1107,7 +1113,16 @@ function updateBadges(){
 }
 
 /* =============== 建物画面 =============== */
-function openBuilding(bid){ curB=bid; curSub=null; $("ovB").classList.add("show"); renderBuilding(bid); }
+function openBuilding(bid){
+  curB=bid; curSub=null; $("ovB").classList.add("show"); renderBuilding(bid);
+  // タップした瞬間にDBから最新のHP・持ち主・防衛を取り直して描き直す
+  if(db) db.ref("buildings/"+bid).get().then(s=>{
+    const v=s.val(); if(!v) return;
+    buildings[bid]=v;
+    if(curB===bid) renderBuilding(bid);
+    renderMap();
+  }).catch(()=>{});
+}
 function closeOv(id){ $(id).classList.remove("show"); if(id==="ovB") curB=null; }
 $("ovB").onclick=e=>{ if(e.target.id==="ovB") closeOv("ovB"); };
 $("ovLog").onclick=e=>{ if(e.target.id==="ovLog") closeOv("ovLog"); };
@@ -1118,7 +1133,7 @@ function renderBuilding(bid){
   const mine = b.owner===me.faction;
   const f = b.owner?FACTIONS[b.owner]:null;
   const defs = Object.values(b.defenders||{});
-  const hpr = b.hp/b.maxHp;
+  const hp = curHp(b), hpr = hp/b.maxHp;
   const ter = terrainOf(bid);
   let html=`
     <h2>${def.ico} ${esc(b.name)}
@@ -1127,7 +1142,7 @@ function renderBuilding(bid){
     <div class="sub">Lv 攻${b.atkLv}/守${b.defLv}/🌾畑${b.hatakeLv||1} ・ 警備員 ${defs.length}体${b.type==="base"?" ・ 拠点HPは無限（削ると倍率が下がる／時間で回復）":""}</div>
     ${ter?`<div class="sub">${terrainNote(bid)}</div>`:""}
     <div class="hpbar ${hpr<0.3?"low":""}"><i style="width:${hpr*100}%"></i></div>
-    <div class="note">HP ${b.hp} / ${b.maxHp}${b.owner?`（倍率+${bldContrib(b).toFixed(2)}倍）`:""}</div>`;
+    <div class="note">HP ${hp} / ${b.maxHp}${b.owner?`（倍率+${bldContrib(b).toFixed(2)}倍）`:""}</div>`;
 
   if(defs.length){
     html+=`<div class="note" style="margin-top:6px;">🛡 防衛中:</div>`;
@@ -1416,11 +1431,7 @@ function runBattle(bid,b){
   const A=battleMembers().map(id=>({id, ...me.units[id]})).filter(u=>u.hp>0);
   const D=Object.values(b.defenders||{}).map(d=>({...d}));
   // 拠点は時間で自然回復（2%/分）
-  let bhp=b.hp;
-  if(b.type==="base"){
-    const regen=Math.floor((Date.now()-(b.lastBattleAt||Date.now()))/60000)*Math.floor(b.maxHp*0.02);
-    bhp=Math.min(b.maxHp, bhp+Math.max(0,regen));
-  }
+  let bhp=curHp(b);
   const bDef=3*b.defLv, bAtk=(b.type==="base"?8:5)+3*b.atkLv;
   const defFacMult = b.owner?multiplier(b.owner):1;
   // 地形ボーナス（攻撃側・防衛側とも、建物の属性と同じ人材は攻守UP）
