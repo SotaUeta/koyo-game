@@ -956,6 +956,14 @@ function multiplier(fac){
   }
   return Math.round(m*100)/100;
 }
+// 学科の順位（倍率順・同率は同順位）
+function facRank(fac){
+  const m=multiplier(fac);
+  return 1+Object.keys(FACTIONS).filter(k=>multiplier(k)>m).length;
+}
+// 劣勢学科への逆転補正: 2位以下は素材ドロップが増える（index=順位-1）
+const COMEBACK_DROP = [1, 1.2, 1.4, 1.6, 1.8];
+const comebackMult = fac => COMEBACK_DROP[facRank(fac)-1] || 1;
 
 /* =============== ヘッダー・バイトコイン =============== */
 function coinState(p){
@@ -1495,7 +1503,8 @@ function runBattle(bid,b){
   const pcN=A.filter(u=>u.equip==="pc").length;
   const eqDropMul=A.reduce((m,u)=>m*(EQUIPS[u.equip]?.dropMul||1),1);
   const evDrop=eventActive("drop2")?EVENT_DROP_MULT:1;
-  const total=Math.max(1,Math.floor(mats*defFacMult*eqDropMul*evDrop));
+  const cbDrop=comebackMult(me.faction); // 🔥逆転補正（自学科が2位以下なら増える）
+  const total=Math.max(1,Math.floor(mats*defFacMult*eqDropMul*evDrop*cbDrop));
   const prefer=b.owner?FAC_MAT[b.owner]:null;
   const keys=Object.keys(MATERIALS);
   for(let i=0;i<total;i++){
@@ -1504,7 +1513,7 @@ function runBattle(bid,b){
     else k=keys[Math.floor(Math.random()*keys.length)];
     drop[k]=(drop[k]||0)+1;
   }
-  log.push({c:"sys",t:"🎒 素材: "+Object.entries(drop).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" ")+(pcN?`（💻パソコン×${pcN}でアップ！）`:"")+(evDrop>1?`（🎉イベントで${EVENT_DROP_MULT}倍！）`:"")});
+  log.push({c:"sys",t:"🎒 素材: "+Object.entries(drop).map(([k,v])=>`${MATERIALS[k]}×${v}`).join(" ")+(pcN?`（💻パソコン×${pcN}でアップ！）`:"")+(evDrop>1?`（🎉イベントで${EVENT_DROP_MULT}倍！）`:"")+(cbDrop>1?`（🔥逆転補正 +${Math.round((cbDrop-1)*100)}%！）`:"")});
   // 装備のレアドロップ（🧦落とし物タイム中は確率アップ）
   let eqDrop=null;
   const evEq=eventActive("equip2")?EVENT_EQUIP_MULT:1;
@@ -2177,9 +2186,9 @@ function renderRank(){
   if(!$("facRank")) return;
   const facs=Object.keys(FACTIONS).map(k=>({k, m:multiplier(k)})).sort((a,b)=>b.m-a.m);
   const max=Math.max(...facs.map(f=>f.m),1.01);
-  $("facRank").innerHTML=facs.map((f,i)=>{
-    const F=FACTIONS[f.k];
-    return `<div style="margin:6px 0; font-size:12px;">${i+1}位 <b style="color:${F.color}">${F.short}科</b> ×${f.m.toFixed(2)}
+  $("facRank").innerHTML=`<p class="note">🔥 逆転補正: 2位以下の学科は素材ドロップが増える（${COMEBACK_DROP.slice(1).map((v,i)=>`${i+2}位+${Math.round((v-1)*100)}%`).join("・")}）</p>`+facs.map(f=>{
+    const F=FACTIONS[f.k], rk=facRank(f.k), cb=COMEBACK_DROP[rk-1]||1;
+    return `<div style="margin:6px 0; font-size:12px;">${rk}位 <b style="color:${F.color}">${F.short}科</b> ×${f.m.toFixed(2)}${cb>1?` <span style="color:var(--koyo)">🔥素材+${Math.round((cb-1)*100)}%</span>`:""}
       <div class="fbar"><i style="width:${f.m/max*100}%; background:${F.color}"></i></div></div>`;
   }).join("");
   if(!me){ $("pRank").innerHTML=""; return; }
