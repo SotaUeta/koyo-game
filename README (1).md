@@ -8,7 +8,7 @@
 ```
 koyo-game/
 ├ index.html   … ゲーム本体（設定もこの中）
-├ campus.png   … キャンパスマップ画像
+├ map.svg      … キャンパスマップ（ゲーム風に描き直したSVG。元の地図と同じ縮尺・配置）
 └ README.md    … このファイル
 ```
 
@@ -58,7 +58,7 @@ const firebaseConfig = {
 ### 3. GitHub Pagesで公開する
 
 1. GitHubで新しいリポジトリを作る（Public）
-2. `index.html` `campus.png` `README.md` をアップロード（Web画面の「Add file → Upload files」でOK）
+2. `index.html` `map.svg` `README.md` をアップロード（Web画面の「Add file → Upload files」でOK）
 3. リポジトリの Settings → Pages → Branch を `main` / `(root)` にして Save
 4. 数分後 `https://ユーザー名.github.io/リポジトリ名/` で公開される
 
@@ -142,6 +142,7 @@ Firebaseコンソール → Realtime Database → データのルート（`playe
 - `EQUIPS` / `EQUIP_DROP_RATE` … 装備の種類・ドロップ率
 - 説明文（図鑑テキスト）… 人材は `UNIT_POOL`/`DEPT_HEADS` の `desc`、回復アイテムは `ITEMS` の `desc`、素材は `MAT_DESC`、装備は `EQUIPS` の `lore`。人材タブの一覧行（回復/装備/素材）は名前タップで説明が出る
 - `BUILDING_DEFS` … 建物の追加、マップ上の位置(x,y は画像の%)、地形属性（`terrain`）と理由の文（`terLore`）
+- `map.svg` … マップの絵。637×861の座標で描いたSVGなので、テキストエディタで建物の位置や色を直接書き換えられる（座標÷637・÷861 が `BUILDING_DEFS` の x,y(%) に対応）
 - `TERRAIN_MULT` … 地形ボーナスの倍率
 
 ## 既知の割り切り（βテスト仕様）
