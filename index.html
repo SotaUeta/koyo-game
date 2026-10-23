@@ -101,6 +101,9 @@ button{font-family:inherit;}
 }
 .bicon .mhp i{display:block; height:100%; background:#2fa043;}
 .bicon.far{opacity:.6; filter:grayscale(.5);}
+.bicon.suspect{border:3px dashed var(--danger); background:#ffe3e6; z-index:3; animation:lurk 1.4s ease-in-out infinite alternate;}
+.bicon.suspect .nm{color:#ffb1b1;}
+@keyframes lurk{ from{box-shadow:0 0 4px var(--danger);} to{box-shadow:0 0 18px var(--danger);} }
 .bicon .rpop{
   position:absolute; bottom:calc(100% + 8px); left:50%;
   background:var(--gold); color:#221a00; font-size:10px; font-weight:bold;
@@ -651,6 +654,12 @@ const SKILLS = {
   debug:       {ico:"🐛", name:"一目でデバッグ",   fx:"team", stat:"def", mult:0.9, target:"enemy", desc:"開幕で敵全員の守り-10%"},
   speech:      {ico:"🎤", name:"校長講話",         fx:"team", stat:"atk", mult:0.9, target:"enemy", desc:"開幕で敵全員の攻撃-10%（眠気）"},
   concrete:    {ico:"🧱", name:"鉄筋コンクリート", fx:"self", stat:"def", mult:1.3, desc:"自分の守りが常に1.3倍"},
+  // 不審者から仲間になる人材専用
+  volley:      {ico:"🎾", name:"前衛のボレー",     fx:"crit", add:0.15, desc:"クリティカル率+15%"},
+  tsutatsu:    {ico:"📜", name:"通達",             fx:"team", stat:"def", mult:0.85, target:"enemy", desc:"開幕で敵全員の守り-15%"},
+  nemawashi:   {ico:"🤝", name:"根回し",           fx:"team", stat:"atk", mult:1.15, target:"ally",  desc:"開幕で味方全員の攻撃+15%"},
+  suberanai:   {ico:"🎙", name:"すべらない話",     fx:"medic", pct:0.20, desc:"毎ラウンド、いちばん傷ついた味方のHPを20%回復"},
+  mujaki:      {ico:"🧒", name:"無邪気",           fx:"dodge", rate:0.3, keep:0, desc:"30%の確率で攻撃を完全に回避する"},
 };
 
 // HPはローマ字表記が短いほど高め・攻撃力は画数が多いほど高め、の傾向で調整済み
@@ -680,17 +689,31 @@ const DEPT_HEADS = {
   C:{name:"小林睦学科長",   hp:290, atk:60, def:22, spd:18, skill:"concrete",  desc:"コンクリートより固い信頼、C科の礎。"},
   A:{name:"鈴木健次学科長", hp:290, atk:60, def:22, spd:26, skill:"blueprint", desc:"図面にもデザインにも妥協しない、A科の巨匠。"},
 };
+// 不審者を撃退すると一定確率で仲間になる人材（ガシャには出ない・すべてAランク）
+const SUSPECT_POOL = [
+  {name:"ソフテニOB",   hp:270, atk:58, def:20, spd:38, skill:"volley",    desc:"週末になるとコートに現れて後輩を指導する。頼んでない。"},
+  {name:"文科省の役人", hp:300, atk:48, def:26, spd:18, skill:"tsutatsu",  desc:"視察に来たはずが、なぜかキャンパスをうろついていた。"},
+  {name:"代議士",       hp:310, atk:52, def:24, spd:20, skill:"nemawashi", desc:"こうよう祭で握手して回っている。選挙が近いらしい。"},
+  {name:"芸人",         hp:260, atk:55, def:20, spd:30, skill:"suberanai", desc:"学祭ステージの営業帰り。笑いで場を和ませる。"},
+  {name:"近所の子供",   hp:220, atk:50, def:16, spd:44, skill:"mujaki",    desc:"フェンスの穴から毎日入ってくる。誰にも止められない。"},
+];
 // 名前→説明・スキルの逆引き（既存の手持ち人材にも名前引きでスキルが付くのでDB移行いらず）
 const UNIT_DESC = {};
 const UNIT_SKILL = {};
-Object.values(UNIT_POOL).flat().concat(Object.values(DEPT_HEADS)).forEach(b=>{
+Object.values(UNIT_POOL).flat().concat(Object.values(DEPT_HEADS), SUSPECT_POOL).forEach(b=>{
   UNIT_DESC[b.name]=b.desc;
   if(b.skill) UNIT_SKILL[b.name]=b.skill;
 });
 // 素早さ: 名前から基準値を引く（素早さ追加前の手持ち・配置中の人材も名前引きで自動対応）
 const UNIT_SPD = {};
-Object.values(UNIT_POOL).flat().concat(Object.values(DEPT_HEADS)).forEach(b=>{ UNIT_SPD[b.name]=b.spd; });
+Object.values(UNIT_POOL).flat().concat(Object.values(DEPT_HEADS), SUSPECT_POOL).forEach(b=>{ UNIT_SPD[b.name]=b.spd; });
 const spdOf = u => u?.spd ?? UNIT_SPD[u?.name] ?? 15;
+
+// 不審者: SUSPECT_SLOT_MSごとにマップのどこか（建物と建物のあいだ）に1人現れ、各枠の最初のSUSPECT_STAY_MSだけ出没する。
+// 場所と属性は時刻から決めるので全員に同じ場所に見える（サーバーへの書き込み不要）。撃退はプレイヤーごと（players/suspectBeat=枠番号）
+const SUSPECT_SLOT_MS = 30*60*1000, SUSPECT_STAY_MS = 20*60*1000;
+const SUSPECT = {name:"不審者", hp:900, atk:55, def:24, spd:24, hits:2}; // hits=1ラウンドの攻撃回数
+const SUSPECT_RECRUIT_RATE = 0.3; // 撃退したとき仲間になる確率
 // 回避率 =（守る側の素早さ − 攻撃側の素早さ）× 0.8%（0〜40%）。相手より速いほど避けやすく、同じか遅ければ避けられない。
 // スキルの回避とは別に、まず素早さで判定する。建物の反撃は素早さBUILDING_SPDの相手として扱う
 const DODGE_PER_SPD = 0.008, DODGE_MAX = 0.4, BUILDING_SPD = 10;
@@ -1097,7 +1120,145 @@ function renderMap(){
       }
     }else if(pop) pop.remove();
   });
+  renderSuspectIcon(wrap);
   updateBadges();
+}
+
+/* =============== 不審者 =============== */
+// 時刻の枠番号から毎回同じ乱数列を作る（全員が同じ場所・属性を計算できる）
+function seededRng(seed){
+  let a=seed|0;
+  return ()=>{ a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+}
+// いま出没中の不審者（いなければnull）。left=消えるまでのミリ秒
+function currentSuspect(){
+  const now=Date.now(), slot=Math.floor(now/SUSPECT_SLOT_MS);
+  const left=SUSPECT_STAY_MS-(now-slot*SUSPECT_SLOT_MS);
+  if(left<=0) return null;
+  const r=seededRng(slot*2654435761);
+  const n=BUILDING_DEFS.length, i=Math.floor(r()*n);
+  let j=Math.floor(r()*(n-1)); if(j>=i) j++;
+  const a=BUILDING_DEFS[i], b=BUILDING_DEFS[j], t=0.3+r()*0.4;
+  const mix=(p,q)=>p+(q-p)*t;
+  return { slot, left,
+    x:mix(a.x,b.x)+(r()-0.5)*4, y:mix(a.y,b.y)+(r()-0.5)*4,
+    lat:mix(a.lat,b.lat), lng:mix(a.lng,b.lng),
+    elm:ELM_KEYS[Math.floor(r()*ELM_KEYS.length)] };
+}
+const suspectBeaten = sp => !!sp && me?.suspectBeat===sp.slot;
+let suspectNotified=null;
+function renderSuspectIcon(wrap){
+  const sp=currentSuspect();
+  let el=iconEls.__suspect;
+  if(!sp || !me || suspectBeaten(sp)){ if(el){ el.remove(); delete iconEls.__suspect; } return; }
+  if(!el || el.dataset.slot!==String(sp.slot)){
+    if(el) el.remove();
+    el=document.createElement("div");
+    el.className="bicon suspect"; el.dataset.slot=sp.slot;
+    el.style.left=sp.x+"%"; el.style.top=sp.y+"%";
+    el.innerHTML=`🕴️<span class="nm"></span>`;
+    el.onclick=()=>{
+      const s=currentSuspect();
+      if(!s || suspectBeaten(s)){ toast("不審者はどこかへ消えた…"); renderMap(); return; }
+      if(!inRange(s)){ toast("近くまで移動すると立ち向かえるよ（約"+TAP_RADIUS_M+"m以内）"); return; }
+      openSuspect();
+    };
+    wrap.appendChild(el); iconEls.__suspect=el;
+    // 新しく現れたら1回だけお知らせ
+    if(suspectNotified!==sp.slot){ suspectNotified=sp.slot; toast("⚠ キャンパスに不審者が現れた！マップを探そう",3500); }
+  }
+  el.querySelector(".nm").textContent=`⚠不審者（あと${Math.ceil(sp.left/60000)}分）`;
+  el.classList.toggle("far", !inRange(sp));
+}
+function openSuspect(){
+  curB=null; curSub=null;
+  $("ovB").classList.add("show");
+  renderSuspect();
+}
+function renderSuspect(){
+  const sp=currentSuspect();
+  if(!sp || suspectBeaten(sp)){ closeOv("ovB"); return; }
+  const ids=(getPreset(presetCur)||[]).filter(id=>me.units?.[id]);
+  const members=battleMembers();
+  const toUnits=`<button class="mini" onclick="closeOv('ovB'); switchTab('units')">👥 人材タブで編成する</button>`;
+  let html=`<h2>🕴️ 不審者 <span class="badge" style="color:var(--danger)">あと${Math.ceil(sp.left/60000)}分で消える</span>
+      <button class="xbtn" onclick="closeOv('ovB')">閉じる</button></h2>
+    <div class="sub">キャンパスに不審者がまぎれこんだ！ 撃退すると${Math.round(SUSPECT_RECRUIT_RATE*100)}%の確率で仲間になるかも</div>
+    <div class="card"><div class="top"><span class="badge">${elmIco(sp.elm)}</span><b>${SUSPECT.name}</b></div>
+      <div class="stat">HP ${SUSPECT.hp}　攻${SUSPECT.atk}　守${SUSPECT.def}　速${SUSPECT.spd}　・1ラウンドに${SUSPECT.hits}回攻撃</div></div>
+    <div class="note">仲間になるかもしれない人材（すべてAランク・ガシャには出ない）:</div>
+    ${SUSPECT_POOL.map(p=>{ const s=SKILLS[p.skill]; return `<div class="note">・<b>${p.name}</b>　${s.ico}${s.name}（${s.desc}）</div>`; }).join("")}
+    <h3 style="font-size:13px;">⚔ 「${esc(presetName(presetCur))}」で立ち向かう</h3>`;
+  if(!ids.length) html+=`<div class="card"><div class="note">この編成にはメンバーがいない。人材タブで編成してね。</div>${toUnits}</div>`;
+  else if(!members.length) html+=`<div class="card"><div class="note">出撃できるメンバーがいない（ぜんぶHP0か防衛中）。回復するか、別のプリセットに切り替えてね。</div>${toUnits}</div>`;
+  else html+=members.map(id=>{ const u=me.units[id];
+      return `<div class="note">・<span class="rank ${u.rank}">${u.rank}</span> ${u.elm?elmIco(u.elm):""} ${esc(u.name)}　HP${u.hp}/${u.maxHp}　攻${eqAtk(u)}　守${eqDef(u)}　速${spdOf(u)}</div>`; }).join("");
+  html+=`<div class="atkfloat"><button class="bigbtn" style="width:100%" ${members.length?"":"disabled"} onclick="startSuspectBattle()">⚔ 立ち向かう（${members.length}体）</button></div>`;
+  $("bSheet").innerHTML=html;
+}
+function startSuspectBattle(){
+  const sp=currentSuspect();
+  if(!sp || suspectBeaten(sp)){ toast("不審者はどこかへ消えた…"); closeOv("ovB"); renderMap(); return; }
+  if(!battleMembers().length){ toast("出撃できるメンバーがいないよ"); return; }
+  closeOv("ovB");
+  runSuspectBattle(sp);
+}
+function runSuspectBattle(sp){
+  const log=[];
+  const A=battleMembers().map(id=>({id, ...me.units[id]})).filter(u=>u.hp>0);
+  A.forEach(u=>{ u.bAtk=eqAtk(u); u.bDef=eqDef(u); });
+  const S={name:SUSPECT.name, hp:SUSPECT.hp, maxHp:SUSPECT.hp, bAtk:SUSPECT.atk, bDef:SUSPECT.def, spd:SUSPECT.spd, elm:sp.elm};
+  let dmgDealt=0, won=false;
+  log.push({c:"sys",t:`🕴️ ${elmIco(sp.elm)}属性の不審者に立ち向かう！（HP${S.hp}）`});
+  skOpening(A,[S],log);
+  const MAX_ROUNDS=10;
+  for(let r=1;r<=MAX_ROUNDS;r++){
+    log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───　不審者HP ${S.hp}/${S.maxHp}`});
+    for(const u of A){
+      if(u.hp<=0) continue;
+      const mult=elmMult(u.elm,S.elm), crit=skCritRoll(u);
+      const raw=Math.max(1,Math.round(baseDmg(u.bAtk*skAtkMult(u,A,r), S.bDef)*mult*crit));
+      const before=S.hp, hit=skHit(S,raw,u);
+      dmgDealt+=before-S.hp;
+      log.push({c:"atk",t:`${u.name} → 不審者 に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${hit.note}`});
+      if(S.hp<=0){ won=true; break; }
+    }
+    if(won) break;
+    for(let k=0;k<SUSPECT.hits;k++){
+      const alive=A.filter(u=>u.hp>0); if(!alive.length) break;
+      const t=alive[Math.floor(Math.random()*alive.length)];
+      const mult=elmMult(S.elm,t.elm);
+      const raw=Math.max(1,Math.round(baseDmg(S.bAtk, t.bDef*skDefMult(t,A))*mult));
+      const hit=skHit(t,raw,S);
+      log.push({c:"def",t:`🕴️ 不審者 → ${t.name} に ${hit.dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}${hit.note}`});
+      if(t.hp<=0) log.push({c:"sys",t:`😵 ${t.name} がやられた…`});
+    }
+    skRoundEnd(A,log);
+    if(!A.some(u=>u.hp>0)){ log.push({c:"sys",t:"全滅…撤退！"}); break; }
+  }
+  let recruit=null;
+  if(won){
+    log.push({c:"sys",t:"🎉 不審者を撃退した！"});
+    if(Math.random()<SUSPECT_RECRUIT_RATE){
+      recruit=makeUnit(SUSPECT_POOL[Math.floor(Math.random()*SUSPECT_POOL.length)], "A");
+      const s=skillDef(recruit);
+      log.push({c:"sys",t:`🤝 なんと不審者の正体は「${recruit.name}」だった！ 仲間になった！（${elmIco(recruit.elm)} HP${recruit.hp} 攻${recruit.atk} 守${recruit.def} 速${recruit.spd}${s?` ・${s.ico}${s.name}`:""}）`});
+    }else{
+      log.push({c:"sys",t:"…不審者は名乗らずに立ち去っていった"});
+    }
+  }else if(A.some(u=>u.hp>0)){
+    log.push({c:"sys",t:`不審者はまだ居座っている…（残りHP ${S.hp}。消える前ならもう一度挑める）`});
+  }
+  const yenGain=Math.floor(dmgDealt/YEN_PER_DMG);
+  log.push({c:"sys",t:`💴 削ったHP ${dmgDealt} → お金 +${yenGain}円（HP${YEN_PER_DMG}につき1円）`});
+  const up={};
+  writeMemberHp(A, up, log);
+  if(won) up[`players/${PID}/suspectBeat`]=sp.slot;
+  if(recruit) up[`players/${PID}/units/${recruit.id}`]=recruit;
+  if(yenGain>0) up[`players/${PID}/yen`]=INC(yenGain);
+  db.ref().update(up).catch(dbErr);
+  missionProg("attack");
+  showLog(log);
 }
 
 /* =============== タブ通知バッジ =============== */
@@ -1569,7 +1730,20 @@ function runBattle(bid,b){
       }
     });
   }
-  // 出撃メンバーのHP確定。🍜カップ麺は生き残っていればバトル後に回復
+  writeMemberHp(A, up, log);
+  Object.entries(drop).forEach(([k,v])=>{ up[`players/${PID}/materials/${k}`]=INC(v); });
+  if(eqDrop) up[`players/${PID}/equips/${eqDrop}`]=INC(1);
+  if(yenGain>0) up[`players/${PID}/yen`]=INC(yenGain);
+  Object.entries(koyoGain).forEach(([pid,v])=>{
+    up[`players/${pid}/koyo`]=INC(v);
+    up[`rankings/${pid}/koyo`]=INC(v);
+  });
+  db.ref().update(up).catch(dbErr);
+  missionProg("attack");
+  showLog(log);
+}
+// 出撃メンバーのHP確定。🍜カップ麺は生き残っていればバトル後に回復（建物バトル・不審者バトル共通）
+function writeMemberHp(A, up, log){
   const ramenHeals=[];
   A.forEach(u=>{
     let hp=Math.max(0,u.hp);
@@ -1581,16 +1755,6 @@ function runBattle(bid,b){
     up[`players/${PID}/units/${u.id}/hp`]=hp;
   });
   if(ramenHeals.length) log.push({c:"sys",t:`🍜 カップ麺でHP回復: ${ramenHeals.join(" ")}`});
-  Object.entries(drop).forEach(([k,v])=>{ up[`players/${PID}/materials/${k}`]=INC(v); });
-  if(eqDrop) up[`players/${PID}/equips/${eqDrop}`]=INC(1);
-  if(yenGain>0) up[`players/${PID}/yen`]=INC(yenGain);
-  Object.entries(koyoGain).forEach(([pid,v])=>{
-    up[`players/${pid}/koyo`]=INC(v);
-    up[`rankings/${pid}/koyo`]=INC(v);
-  });
-  db.ref().update(up).catch(dbErr);
-  missionProg("attack");
-  showLog(log);
 }
 let logQueue=[], logIdx=0, logTimer=null;
 function addLogLine(l){
