@@ -627,6 +627,7 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovLog"><div class="sheet">
   <h2>⚔ バトル <button class="xbtn" onclick="closeOv('ovLog')">閉じる</button></h2>
   <div class="bctl" id="bctl"><span id="bspd">再生速度 <button class="mini" data-spd="1" onclick="setBattleSpeed(1)">×1</button><button class="mini" data-spd="2" onclick="setBattleSpeed(2)">×2</button><button class="mini" data-spd="4" onclick="setBattleSpeed(4)">×4</button></span>
+    <button class="mini" id="bsnd" onclick="toggleSfx()" title="効果音">🔊</button><button class="mini" id="bvib" onclick="toggleVib()" title="振動">📳</button>
     <button class="mini" id="blogSkip" onclick="skipLog()">⏭ 結果へ</button></div>
   <div id="bstage">
     <div id="bround"></div>
@@ -1944,6 +1945,66 @@ function writeMemberHp(A, up, log){
   });
   if(ramenHeals.length) log.push({c:"sys",t:`🍜 カップ麺でHP回復: ${ramenHeals.join(" ")}`});
 }
+/* =============== 効果音・振動（音声ファイルなし。WebAudioでその場で合成する） =============== */
+const SFX_KEY="koyo_sfx", VIB_KEY="koyo_vib";
+const lsGet=(k,d)=>{ try{ const v=localStorage.getItem(k); return v===null?d:v==="1"; }catch(e){ return d; } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(k, v?"1":"0"); }catch(e){} };
+let sfxOn=lsGet(SFX_KEY,true), vibOn=lsGet(VIB_KEY,true), actx=null, amaster=null, noiseBuf=null;
+function audioCtx(){
+  if(!actx){
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null;
+    actx=new AC(); amaster=actx.createGain(); amaster.gain.value=0.35; amaster.connect(actx.destination);
+  }
+  if(actx.state==="suspended") actx.resume().catch(()=>{});
+  return actx;
+}
+// ブラウザは最初のタップまで音を鳴らせないので、タップのたびに準備しておく
+document.addEventListener("pointerdown", ()=>{ if(sfxOn) audioCtx(); }, {passive:true});
+// 音を1つ鳴らす（f:周波数Hz, d:長さ秒, to:最後の周波数, at:何秒後に鳴らすか）
+function tone(f, d, {type="square", vol=.3, to=null, at=0}={}){
+  const t=actx.currentTime+at, o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.setValueAtTime(f,t); if(to) o.frequency.exponentialRampToValueAtTime(to,t+d);
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+d);
+  o.connect(g); g.connect(amaster); o.start(t); o.stop(t+d+0.02);
+}
+// ザッという雑音（打撃・風切り）
+function noise(d, {vol=.3, freq=1500, ftype="lowpass", to=null, at=0}={}){
+  const t=actx.currentTime+at;
+  if(!noiseBuf){
+    noiseBuf=actx.createBuffer(1, actx.sampleRate*0.5, actx.sampleRate);
+    const ch=noiseBuf.getChannelData(0); for(let i=0;i<ch.length;i++) ch[i]=Math.random()*2-1;
+  }
+  const src=actx.createBufferSource(); src.buffer=noiseBuf;
+  const f=actx.createBiquadFilter(); f.type=ftype; f.frequency.setValueAtTime(freq,t); if(to) f.frequency.exponentialRampToValueAtTime(to,t+d);
+  const g=actx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+d);
+  src.connect(f); f.connect(g); g.connect(amaster); src.start(t); src.stop(t+d+0.02);
+}
+const SFX={
+  hit:    ()=>{ noise(.09,{vol:.35,freq:1800}); tone(170,.09,{vol:.12,to:70}); },
+  crit:   ()=>{ noise(.18,{vol:.5,freq:2600}); tone(240,.2,{type:"sawtooth",vol:.18,to:55}); tone(1400,.12,{type:"triangle",vol:.12,at:.02}); },
+  miss:   ()=>{ noise(.16,{vol:.2,freq:600,ftype:"bandpass",to:3500}); },
+  heal:   ()=>{ [660,880,1320].forEach((f,i)=>tone(f,.18,{type:"sine",vol:.16,at:i*.07})); },
+  ko:     ()=>{ tone(420,.38,{type:"triangle",vol:.22,to:110}); },
+  skill:  ()=>{ noise(.3,{vol:.16,freq:400,ftype:"bandpass",to:4000}); tone(520,.32,{type:"sine",vol:.14,to:1300,at:.04}); },
+  round:  ()=>{ tone(880,.05,{vol:.08}); },
+  capture:()=>{ [523,659,784,1047].forEach((f,i)=>tone(f,.22,{vol:.13,at:i*.09})); tone(1047,.6,{type:"triangle",vol:.14,at:.36}); },
+  win:    ()=>{ [[784,.1,0],[784,.1,.12],[784,.1,.24],[1047,.5,.38]].forEach(([f,d,at])=>tone(f,d,{vol:.12,at})); },
+  lose:   ()=>{ [392,330,262].forEach((f,i)=>tone(f,.28,{type:"triangle",vol:.18,at:i*.22})); },
+  timeup: ()=>{ tone(660,.12,{vol:.1}); tone(523,.25,{vol:.1,at:.14}); },
+  coin:   ()=>{ tone(988,.06,{vol:.1}); tone(1319,.18,{vol:.1,at:.06}); },
+  rare:   ()=>{ [1319,1568,1976,2637].forEach((f,i)=>tone(f,.16,{type:"triangle",vol:.11,at:i*.06})); },
+};
+function sfx(name){ if(!sfxOn||!SFX[name]) return; if(!audioCtx()) return; try{ SFX[name](); }catch(e){} }
+// 振動（対応端末のみ。iPhoneのSafariは非対応）
+const VIB={crit:[25], hurt:[70], win:[60,40,120], lose:[220]};
+function vib(name){ if(vibOn && navigator.vibrate) try{ navigator.vibrate(VIB[name]); }catch(e){} }
+function renderSfxBtns(){
+  const sb=$("bsnd"); sb.textContent=sfxOn?"🔊":"🔇"; sb.classList.toggle("sel",sfxOn);
+  const vb=$("bvib"); vb.style.display=navigator.vibrate?"":"none"; vb.textContent=vibOn?"📳":"📴"; vb.classList.toggle("sel",vibOn);
+}
+function toggleSfx(){ sfxOn=!sfxOn; lsSet(SFX_KEY,sfxOn); if(sfxOn) sfx("coin"); renderSfxBtns(); }
+function toggleVib(){ vibOn=!vibOn; lsSet(VIB_KEY,vibOn); vib("crit"); renderSfxBtns(); }
+
 /* =============== バトル演出（対面画面・ダメージ数字・リザルト・再生速度） =============== */
 // 計算はバトル関数で全部済ませ、ログ行に付けた再生用イベント(ev)を順に再生するだけ（表示と結果はずれない）
 // skFrom=攻撃側のスキルが効いた / skTo=受けた側のスキル（回避・受け流し・踏みとどまり）が発動した
@@ -2007,6 +2068,7 @@ function bCutIn(bid){
   c.innerHTML=`<div class="bcut-face">${sk.ico}</div><div class="bcut-txt"><div class="bcut-nm">${esc(f.name)}</div>
     <div class="bcut-sk">${esc(sk.name)}</div><div class="bcut-line">「${esc(unitLine(f.name,"skill"))}」</div><div class="bcut-desc">${esc(sk.desc)}</div></div>`;
   void c.offsetWidth; c.className="show "+(bid[0]==="a"?"ally":"foe");
+  sfx("skill");
   return B_WAIT.cut;
 }
 // 吹き出しのセリフ（味方はカードの上、敵はカードの下に出す）
@@ -2029,8 +2091,8 @@ function showLog(log, scene, result){
   $("blogBox").open=!scene;
   bp={log, i:0, timer:null, scene, result, skipped:false, cut:new Set(), fighters:{}};
   if(scene) renderStage(scene);
-  setBattleSpeed(bSpeed);
-  $("bctl").style.display="";
+  setBattleSpeed(bSpeed); renderSfxBtns();
+  $("bspd").style.display=""; $("blogSkip").style.display="";
   bStep();
 }
 function bStep(){
@@ -2081,20 +2143,20 @@ function bBanner(html, cls, color){
 function bPlay(ev){
   const tok=bp, later=(ms,fn)=>setTimeout(()=>{ if(bp===tok && !tok.skipped) fn(); }, ms/bSpeed); // 飛ばした・次のバトルが始まったら何もしない
   if(ev.k==="round"){
-    bApply(ev); bRestart($("bround"),"pop");
+    bApply(ev); bRestart($("bround"),"pop"); sfx("round");
     if(ev.n===1 && bp.fighters?.S) later(200,()=>bSay("S","skill")); // 不審者の第一声
     return B_WAIT.round;
   }
   if(ev.k==="skill"){
     const w=bCutIn(ev.who);
-    if(!w) bBanner(`✨${ev.ico} ${esc(ev.name)}`,"skill");
+    if(!w){ bBanner(`✨${ev.ico} ${esc(ev.name)}`,"skill"); sfx("skill"); }
     return w||B_WAIT.skill;
   }
   if(ev.k==="ko"){ bApply(ev); return B_WAIT.ko; }
-  if(ev.k==="capture"){ bBanner("🚩 制圧！","capture",ev.color); return B_WAIT.capture; }
+  if(ev.k==="capture"){ bBanner("🚩 制圧！","capture",ev.color); sfx("capture"); vib("win"); bp.vibbed=true; return B_WAIT.capture; }
   if(ev.k==="heal"){
     const pre=bCutIn(ev.who);
-    later(pre,()=>{ bApply(ev); bPop(ev.to,`+${ev.amt}`,"heal"); bRestart(bEl(ev.to),"glow"); });
+    later(pre,()=>{ bApply(ev); bPop(ev.to,`+${ev.amt}`,"heal"); bRestart(bEl(ev.to),"glow"); sfx("heal"); });
     return pre+B_WAIT.heal;
   }
   if(ev.k==="hit"){
@@ -2106,15 +2168,21 @@ function bPlay(ev){
     later(pre+210,()=>{
       bSetHp(ev.to, ev.hp);
       if(post) bCutIn(ev.to);
-      if(ev.miss){ bPop(ev.to,"MISS","miss"); return; }
+      if(ev.miss){ bPop(ev.to,"MISS","miss"); sfx("miss"); return; }
       bRestart(bEl(ev.to), ev.crit?"hitBig":"hit");
+      sfx(ev.crit?"crit":"hit");
+      if(ev.crit && ev.from[0]==="a") vib("crit");
       const tags=[];
       if(ev.crit) tags.push("💥CRITICAL!"); if(ev.adv) tags.push("効果バツグン!"); if(ev.ter) tags.push("⛰地形");
       if(ev.guard) tags.push("受け流し"); if(ev.stay) tags.push("踏みとどまった!");
       bPop(ev.to, `<b>${ev.dmg}</b>${tags.length?`<small>${tags.join(" ")}</small>`:""}`, (ev.crit?"crit ":"")+(ev.adv?"adv":""));
       if(ev.crit) bRestart($("bstage"),"quake");
       // とどめ: 倒された側と倒した側がひとこと
-      if(ev.hp<=0){ bSay(ev.to,"ko"); bSay(ev.from,"kill"); }
+      if(ev.hp<=0){
+        bSay(ev.to,"ko"); bSay(ev.from,"kill");
+        later(120,()=>sfx("ko"));
+        if(ev.to[0]==="a") vib("hurt"); // 味方がやられた
+      }
     });
     return pre+post+B_WAIT.hit*(ev.crit?1.25:1)+(ev.hp<=0&&!ev.miss?350:0);
   }
@@ -2123,7 +2191,7 @@ function bPlay(ev){
 // リザルト画面
 function bFinish(){
   if(!bp) return;
-  $("bctl").style.display="none";
+  $("bspd").style.display="none"; $("blogSkip").style.display="none"; // 音・振動の切り替えは結果画面でも押せるよう残す
   $("bcut").className="";
   const r=bp.result; if(!r) return;
   const H={capture:["🚩 制圧！","cap"], win:["🎉 WIN!","win"], lose:["LOSE…","lose"], timeup:["⏱ TIME UP","tu"]}[r.outcome]||["結果","tu"];
@@ -2139,6 +2207,10 @@ function bFinish(){
     + r.rewards.map((w,i)=>`<div class="rw ${w.rare?"rare":""}" style="animation-delay:${0.4+i*0.25}s">${w.ico} ${esc(w.txt)}</div>`).join("")+`</div>`;
   html+=`<div class="row" style="margin-top:12px"><button class="bigbtn" onclick="closeOv('ovLog')">OK</button></div>`;
   const el=$("bresult"); el.innerHTML=html; el.style.display="block";
+  sfx({capture:"win", win:"win", lose:"lose", timeup:"timeup"}[r.outcome]);
+  if((r.outcome==="capture"&&!bp.vibbed)||r.outcome==="win") vib("win"); else if(r.outcome==="lose") vib("lose"); // 制圧の瞬間に振動済みなら重ねない
+  // 報酬が落ちてくるのに合わせて鳴らす（アニメーションの遅れと同じタイミング）
+  r.rewards.forEach((w,i)=>setTimeout(()=>{ if($("ovLog").classList.contains("show")) sfx(w.rare?"rare":"coin"); }, 550+i*250));
   el.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
