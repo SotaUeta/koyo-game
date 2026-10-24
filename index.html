@@ -231,8 +231,91 @@ button{font-family:inherit;}
 .plist .me{color:var(--gold);}
 
 /* ===== battle log ===== */
-#blog{font-size:13px; line-height:1.7; max-height:45vh; overflow:auto; background:#0007; border-radius:8px; padding:10px; border:1px solid var(--line);}
+#blog{font-size:13px; line-height:1.7; max-height:30vh; overflow:auto; background:#0007; border-radius:8px; padding:10px; border:1px solid var(--line);}
 #blog .atk{color:#ffb1b1;} #blog .def{color:#a9c7ff;} #blog .sys{color:var(--gold);}
+/* ===== battle stage ===== */
+.bctl{display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--dim); margin:0 0 6px;}
+.bctl .mini{padding:4px 9px; font-size:12px;}
+#blogSkip{margin-left:auto;}
+#bstage{position:relative; --d:1; border-radius:12px; padding:8px; overflow:hidden; border:1px solid var(--line);
+  background:linear-gradient(180deg,#2a3358,#161b36);}
+#bstage.ter-water{background:linear-gradient(180deg,#1f5f86,#0f3046);}
+#bstage.ter-fire{background:linear-gradient(180deg,#6b2a1a,#261009);}
+#bstage.ter-ice{background:linear-gradient(180deg,#3e6c8c,#172a3b);}
+#bstage.ter-wind{background:linear-gradient(180deg,#356e43,#152c1c);}
+#bstage.ter-thunder{background:linear-gradient(180deg,#5a4c1a,#1d180a);}
+#bstage.ter-earth{background:linear-gradient(180deg,#5c4630,#231a10);}
+#bstage.ter-suspect{background:linear-gradient(180deg,#3a1020,#12050c);}
+#bround{text-align:center; font-size:13px; color:var(--gold); letter-spacing:2px; min-height:18px; margin-bottom:4px;}
+#bround.pop{animation:rpop calc(.5s*var(--d)) ease-out;}
+@keyframes rpop{0%{transform:scale(1.8);opacity:0} 100%{transform:scale(1);opacity:1}}
+.bvs{text-align:center; font-size:11px; color:var(--dim); margin:6px 0; letter-spacing:2px;}
+.bgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:6px;}
+#bsEnemy .bgrid{margin-top:6px;}
+.bu{position:relative; background:#0007; border:2px solid var(--line); border-radius:10px; padding:4px 6px 5px; text-align:center; transition:opacity .3s, filter .3s;}
+.bu.foe{border-color:#7a3a4a;} .bu.ally{border-color:#3a5a8a;}
+.bu.big{padding:6px 12px;}
+.bu .bface{position:relative; font-size:26px; line-height:1.25;}
+.bu.big .bface{font-size:40px;}
+.bu .bface .rank{position:absolute; left:-3px; top:0; font-size:10px; padding:0 4px; line-height:1.4;}
+.bu .belm{position:absolute; right:-3px; top:0; font-size:12px; line-height:1.4;}
+.bu .bnm{font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.bu.big .bnm{font-size:13px; font-weight:bold;}
+.bhp{height:6px; background:#000a; border-radius:3px; overflow:hidden; margin-top:3px;}
+.bu.big .bhp{height:11px; border-radius:6px;}
+.bhp i{display:block; height:100%; background:linear-gradient(90deg,#2fa043,#7ad14f); transition:width calc(.35s*var(--d)) ease-out;}
+.bhp i.mid{background:linear-gradient(90deg,#f2a005,#ffd34d);}
+.bhp i.low{background:linear-gradient(90deg,#e8394a,#ff9c3f);}
+.bhpn{font-size:9px; color:var(--dim);}
+.bu.big .bhpn{font-size:11px;}
+.bu.ko{opacity:.35; filter:grayscale(1);}
+.bu.lungeUp{animation:lungeUp calc(.36s*var(--d)) ease-out;}
+.bu.lungeDown{animation:lungeDown calc(.36s*var(--d)) ease-out;}
+@keyframes lungeUp{0%,100%{transform:none} 40%{transform:translateY(-14px) scale(1.06); z-index:3;}}
+@keyframes lungeDown{0%,100%{transform:none} 40%{transform:translateY(14px) scale(1.06); z-index:3;}}
+.bu.hit{animation:bhit calc(.35s*var(--d));}
+.bu.hitBig{animation:bhit calc(.5s*var(--d));}
+@keyframes bhit{0%,100%{transform:none} 20%{transform:translateX(-6px); background:#e8394a99;} 40%{transform:translateX(6px);} 60%{transform:translateX(-4px);} 80%{transform:translateX(3px);}}
+.bu.glow{animation:bglow calc(.6s*var(--d));}
+@keyframes bglow{0%,100%{box-shadow:none;} 50%{box-shadow:0 0 16px var(--gold); border-color:var(--gold);}}
+#bstage.quake{animation:quake calc(.3s*var(--d));}
+@keyframes quake{0%,100%{transform:none} 25%{transform:translate(-4px,2px)} 50%{transform:translate(4px,-2px)} 75%{transform:translate(-2px,1px)}}
+.bpop{position:absolute; left:50%; top:22%; transform:translate(-50%,0); pointer-events:none; z-index:4; white-space:nowrap;
+  font-size:18px; font-weight:bold; color:#fff; text-shadow:0 0 3px #000, 0 2px 0 #000; animation:bpop calc(1.05s*var(--d)) ease-out forwards;}
+.bpop small{display:block; font-size:10px; color:var(--gold); margin-top:-2px;}
+.bpop.crit b{font-size:27px; color:#ffd34d;}
+.bpop.adv b{color:#ff9c3f;}
+.bpop.miss{color:#9fd3ff; font-size:15px;}
+.bpop.heal{color:#7ad14f;}
+@keyframes bpop{0%{transform:translate(-50%,8px) scale(.6); opacity:0;} 15%{transform:translate(-50%,-6px) scale(1.15); opacity:1;} 70%{opacity:1;} 100%{transform:translate(-50%,-30px); opacity:0;}}
+#bflash{position:absolute; left:0; right:0; top:42%; text-align:center; pointer-events:none; opacity:0; z-index:6; font-weight:bold;}
+#bflash.show.skill{animation:bslide calc(.65s*var(--d)) ease-out; font-size:15px; color:var(--gold); padding:6px 0;
+  background:linear-gradient(90deg,transparent,#000d 20%,#000d 80%,transparent);}
+@keyframes bslide{0%{transform:translateX(-100%); opacity:0;} 25%,75%{transform:none; opacity:1;} 100%{transform:translateX(100%); opacity:0;}}
+#bflash.show.capture{top:25%; padding:36px 0; font-size:32px; color:#fff; text-shadow:0 0 12px var(--fc,#fff), 0 2px 0 #000;
+  background:radial-gradient(ellipse at center, var(--fc,#fff) 0%, transparent 70%); animation:bcap calc(1.3s*var(--d)) ease-out forwards;}
+@keyframes bcap{0%{transform:scale(.3); opacity:0;} 30%{transform:scale(1.15); opacity:1;} 100%{transform:scale(1); opacity:.95;}}
+#bticker{font-size:11px; color:var(--dim); min-height:16px; margin:6px 2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+#bresult{display:none; margin-top:8px; padding:10px; border-radius:12px; background:var(--panel2); border:1px solid var(--line);}
+.bres-head{text-align:center; font-size:30px; font-weight:bold; letter-spacing:2px; animation:rpop .5s ease-out;}
+.bres-head.cap{color:var(--gold); text-shadow:0 0 14px var(--gold);}
+.bres-head.win{color:#7ad14f; text-shadow:0 0 14px #2fa043;}
+.bres-head.lose{color:#9aa3cc;}
+.bres-head.tu{color:#ffb1b1;}
+.bres-sub{text-align:center; font-size:12px; margin:2px 0 6px;}
+.bres-sec{font-size:12px; color:var(--gold); margin:10px 0 4px;}
+.bres-row{display:flex; align-items:center; gap:6px; font-size:11px; margin:3px 0; animation:fadeUp .35s both;}
+.bres-nm{width:8em; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+.bres-bar{flex:1; height:8px; background:#0008; border-radius:4px; overflow:hidden;}
+.bres-bar i{display:block; height:100%; background:linear-gradient(90deg,#f2a005,#ffd34d);}
+.bres-rew{display:flex; flex-wrap:wrap; gap:6px;}
+.rw{background:#0005; border:1px solid var(--line); border-radius:8px; padding:5px 9px; font-size:12px; animation:dropIn .4s both;}
+.rw.rare{border-color:var(--gold); color:var(--gold); animation:dropIn .4s both, shine 1.1s 1s ease-in-out infinite alternate;}
+@keyframes dropIn{0%{transform:translateY(-16px) scale(.7); opacity:0;} 100%{transform:none; opacity:1;}}
+@keyframes fadeUp{0%{transform:translateY(6px); opacity:0;} 100%{transform:none; opacity:1;}}
+@keyframes shine{from{box-shadow:0 0 3px var(--gold);} to{box-shadow:0 0 16px var(--gold);}}
+#blogBox summary{font-size:12px; color:var(--dim); cursor:pointer; margin:8px 0 4px;}
+
 
 /* ===== register / login ===== */
 #reg,#login{position:fixed; inset:0; background:var(--bg); z-index:50; overflow:auto; padding:24px 16px; display:none;}
@@ -517,8 +600,19 @@ const BUILDING_DEFS = [
 <div class="overlay" id="ovB"><div class="sheet" id="bSheet"></div></div>
 <!-- バトルログ -->
 <div class="overlay" id="ovLog"><div class="sheet">
-  <h2>⚔ バトル <button class="mini" id="blogSkip" onclick="skipLog()">⏩ 全部表示</button><button class="xbtn" onclick="closeOv('ovLog')">閉じる</button></h2>
-  <div id="blog"></div>
+  <h2>⚔ バトル <button class="xbtn" onclick="closeOv('ovLog')">閉じる</button></h2>
+  <div class="bctl" id="bctl"><span id="bspd">再生速度 <button class="mini" data-spd="1" onclick="setBattleSpeed(1)">×1</button><button class="mini" data-spd="2" onclick="setBattleSpeed(2)">×2</button><button class="mini" data-spd="4" onclick="setBattleSpeed(4)">×4</button></span>
+    <button class="mini" id="blogSkip" onclick="skipLog()">⏭ 結果へ</button></div>
+  <div id="bstage">
+    <div id="bround"></div>
+    <div id="bsEnemy"></div>
+    <div class="bvs">⚔ VS ⚔</div>
+    <div id="bsAlly"></div>
+    <div id="bflash"></div>
+  </div>
+  <div id="bticker"></div>
+  <div id="bresult"></div>
+  <details id="blogBox"><summary>📜 バトルログ（文字で見る）</summary><div id="blog"></div></details>
 </div></div>
 <!-- プリセット名の変更 -->
 <div class="overlay" id="ovRename"><div class="sheet">
@@ -1207,20 +1301,25 @@ function runSuspectBattle(sp){
   const log=[];
   const A=battleMembers().map(id=>({id, ...me.units[id]})).filter(u=>u.hp>0);
   A.forEach(u=>{ u.bAtk=eqAtk(u); u.bDef=eqDef(u); });
-  const S={name:SUSPECT.name, hp:SUSPECT.hp, maxHp:SUSPECT.hp, bAtk:SUSPECT.atk, bDef:SUSPECT.def, spd:SUSPECT.spd, elm:sp.elm};
+  const S={bid:"S", name:SUSPECT.name, hp:SUSPECT.hp, maxHp:SUSPECT.hp, bAtk:SUSPECT.atk, bDef:SUSPECT.def, spd:SUSPECT.spd, elm:sp.elm};
+  A.forEach((u,i)=>u.bid="a"+i);
+  const scene={ ter:null, main:{bid:"S", name:SUSPECT.name, ico:"🕴️", hp:S.hp, maxHp:S.maxHp, kind:"suspect", elm:sp.elm},
+    enemies:[], allies:A.map(u=>bFighter(u)) };
   let dmgDealt=0, won=false;
   log.push({c:"sys",t:`🕴️ ${elmIco(sp.elm)}属性の不審者に立ち向かう！（HP${S.hp}）`});
   skOpening(A,[S],log);
   const MAX_ROUNDS=10;
   for(let r=1;r<=MAX_ROUNDS;r++){
-    log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───　不審者HP ${S.hp}/${S.maxHp}`});
+    log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───　不審者HP ${S.hp}/${S.maxHp}`, ev:{k:"round",n:r,max:MAX_ROUNDS}});
     for(const u of A){
       if(u.hp<=0) continue;
       const mult=elmMult(u.elm,S.elm), crit=skCritRoll(u);
       const raw=Math.max(1,Math.round(baseDmg(u.bAtk*skAtkMult(u,A,r), S.bDef)*mult*crit));
       const before=S.hp, hit=skHit(S,raw,u);
       dmgDealt+=before-S.hp;
-      log.push({c:"atk",t:`${u.name} → 不審者 に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${hit.note}`});
+      u.dealt=(u.dealt||0)+before-S.hp;
+      log.push({c:"atk",t:`${u.name} → 不審者 に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${hit.note}`,
+        ev:hitEv(u.bid,"S",S.hp,hit,crit>1,mult>1,false)});
       if(S.hp<=0){ won=true; break; }
     }
     if(won) break;
@@ -1230,8 +1329,8 @@ function runSuspectBattle(sp){
       const mult=elmMult(S.elm,t.elm);
       const raw=Math.max(1,Math.round(baseDmg(S.bAtk, t.bDef*skDefMult(t,A))*mult));
       const hit=skHit(t,raw,S);
-      log.push({c:"def",t:`🕴️ 不審者 → ${t.name} に ${hit.dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}${hit.note}`});
-      if(t.hp<=0) log.push({c:"sys",t:`😵 ${t.name} がやられた…`});
+      log.push({c:"def",t:`🕴️ 不審者 → ${t.name} に ${hit.dmg}ダメージ${mult>1?"（属性で効果バツグン！）":""}${hit.note}`, ev:hitEv("S",t.bid,t.hp,hit,false,mult>1,false)});
+      if(t.hp<=0) log.push({c:"sys",t:`😵 ${t.name} がやられた…`, ev:{k:"ko",to:t.bid}});
     }
     skRoundEnd(A,log);
     if(!A.some(u=>u.hp>0)){ log.push({c:"sys",t:"全滅…撤退！"}); break; }
@@ -1258,7 +1357,16 @@ function runSuspectBattle(sp){
   if(yenGain>0) up[`players/${PID}/yen`]=INC(yenGain);
   db.ref().update(up).catch(dbErr);
   missionProg("attack");
-  showLog(log);
+  // リザルト画面
+  const allDown=!A.some(u=>u.hp>0);
+  const rewards=[];
+  if(recruit) rewards.push({ico:"🤝", txt:`${recruit.name} が仲間になった！`, rare:true});
+  if(yenGain>0) rewards.push({ico:"💴", txt:`${yenGain}円`});
+  showLog(log, scene, battleResult(A, {
+    outcome: won?"win": allDown?"lose":"timeup",
+    sub: won ? (recruit?`不審者の正体は「${recruit.name}」だった！`:"不審者は名乗らずに立ち去っていった")
+       : allDown ? "出撃メンバーが全滅した…" : `不審者の残りHP ${S.hp}。消える前ならもう一度挑める`,
+    rewards }));
 }
 
 /* =============== タブ通知バッジ =============== */
@@ -1287,7 +1395,7 @@ function openBuilding(bid){
     renderMap();
   }).catch(()=>{});
 }
-function closeOv(id){ $(id).classList.remove("show"); if(id==="ovB") curB=null; }
+function closeOv(id){ $(id).classList.remove("show"); if(id==="ovB") curB=null; if(id==="ovLog") bStop(); }
 $("ovB").onclick=e=>{ if(e.target.id==="ovB") closeOv("ovB"); };
 $("ovLog").onclick=e=>{ if(e.target.id==="ovLog") closeOv("ovLog"); };
 
@@ -1509,14 +1617,14 @@ function skOpening(side, enemy, log){
     if(s.fx==="self"){
       const k=s.stat==="atk"?"bAtk":"bDef";
       u[k]=Math.round(u[k]*s.mult);
-      log.push({c:"sys",t:`✨ ${u.name} のスキル「${s.ico}${s.name}」！ ${s.desc}`});
+      log.push({c:"sys",t:`✨ ${u.name} のスキル「${s.ico}${s.name}」！ ${s.desc}`, ev:{k:"skill",who:u.bid,ico:s.ico,name:s.name}});
     }
   });
   side.forEach(u=>{
     const s=skillDef(u); if(!s||s.fx!=="team") return;
     const k=s.stat==="atk"?"bAtk":"bDef";
     (s.target==="enemy"?enemy:side).forEach(x=>{ x[k]=Math.round(x[k]*s.mult); });
-    log.push({c:"sys",t:`✨ ${u.name} のスキル「${s.ico}${s.name}」！ ${s.desc}`});
+    log.push({c:"sys",t:`✨ ${u.name} のスキル「${s.ico}${s.name}」！ ${s.desc}`, ev:{k:"skill",who:u.bid,ico:s.ico,name:s.name}});
   });
 }
 // 攻撃時の倍率（条件つき攻撃アップ系）
@@ -1568,14 +1676,14 @@ function skRoundEnd(side, log){
     if(s.fx==="regen" && u.hp<u.maxHp){
       const h=Math.min(u.maxHp-u.hp, Math.max(1,Math.round(u.maxHp*s.pct)));
       u.hp+=h;
-      log.push({c:"sys",t:`${s.ico} ${u.name} は「${s.name}」でHPを${h}回復`});
+      log.push({c:"sys",t:`${s.ico} ${u.name} は「${s.name}」でHPを${h}回復`, ev:{k:"heal",to:u.bid,amt:h,hp:u.hp}});
     }
     if(s.fx==="medic"){
       const hurt=side.filter(x=>x.hp>0&&x.hp<x.maxHp).sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0];
       if(hurt){
         const h=Math.min(hurt.maxHp-hurt.hp, Math.max(1,Math.round(hurt.maxHp*s.pct)));
         hurt.hp+=h;
-        log.push({c:"sys",t:`${s.ico} ${u.name} の「${s.name}」！ ${hurt.name} のHPを${h}回復`});
+        log.push({c:"sys",t:`${s.ico} ${u.name} の「${s.name}」！ ${hurt.name} のHPを${h}回復`, ev:{k:"heal",to:hurt.bid,amt:h,hp:hurt.hp}});
       }
     }
   });
@@ -1609,6 +1717,11 @@ function runBattle(bid,b){
   // バトル用ステータス（装備込み）を用意して開幕スキルを発動（攻撃側先）
   A.forEach(u=>{ u.bAtk=eqAtk(u); u.bDef=eqDef(u); });
   D.forEach(d=>{ d.bAtk=d.atk; d.bDef=d.def; }); // 防衛側は配置時に装備込みで保存済み
+  // 演出用: バトル内のID（a0〜=攻撃側, d0〜=防衛側, B=建物）と開始時の場面
+  A.forEach((u,i)=>u.bid="a"+i); D.forEach((d,i)=>d.bid="d"+i);
+  const bdefn=BUILDING_DEFS.find(x=>x.id===bid), hpStart=bhp;
+  const scene={ ter, main:{bid:"B", name:b.name, ico:bdefn?.ico||"🏢", hp:bhp, maxHp:b.maxHp, kind:b.type},
+    enemies:D.map(d=>bFighter(d)), allies:A.map(u=>bFighter(u)) };
 
   log.push({c:"sys",t:`⚔ ${b.name} への攻撃開始！（防衛${D.length}体）`});
   if(ter) log.push({c:"sys",t:terrainNote(bid)});
@@ -1617,7 +1730,7 @@ function runBattle(bid,b){
   skOpening(D,A,log);
   const MAX_ROUNDS=10;
   for(let r=1;r<=MAX_ROUNDS;r++){
-    log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───`});
+    log.push({c:"sys",t:`─── ラウンド ${r}/${MAX_ROUNDS} ───`, ev:{k:"round",n:r,max:MAX_ROUNDS}});
     // 攻撃側ターン（先攻）
     for(const u of A){
       if(u.hp<=0) continue;
@@ -1628,8 +1741,10 @@ function runBattle(bid,b){
         const hpBefore=tgt.hp;
         const hit=skHit(tgt,raw,u);
         dmgDealt+=hpBefore-tgt.hp; // 実際に削れたぶんだけ数える（回避・踏みとどまりを反映）
-        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(u.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
-        if(tgt.hp<=0){ kills++; mats+=2; u.skKills=(u.skKills||0)+1; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`}); }
+        u.dealt=(u.dealt||0)+hpBefore-tgt.hp;
+        log.push({c:"atk",t:`${u.name} → ${tgt.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(u.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`,
+          ev:hitEv(u.bid,tgt.bid,tgt.hp,hit,crit>1,mult>1,tm(u.elm)>1)});
+        if(tgt.hp<=0){ kills++; mats+=2; u.skKills=(u.skKills||0)+1; log.push({c:"sys",t:`💥 ${tgt.name} を倒した！`, ev:{k:"ko",to:tgt.bid}}); }
       }else{
         const crit=skCritRoll(u);
         const dmg=Math.max(1,Math.round(baseDmg(u.bAtk*tm(u.elm)*skAtkMult(u,A,r), bDef)*crit));
@@ -1639,12 +1754,14 @@ function runBattle(bid,b){
         if(b.type==="facility"){
           bhp-=dmg;
           dmgDealt+=hpBefore-Math.max(0,bhp);
-          log.push({c:"atk",t:`${u.name} → 建物に ${dmg}ダメージ${cr}`});
-          if(bhp<=0){ captured=true; break; }
+          u.dealt=(u.dealt||0)+hpBefore-Math.max(0,bhp);
+          log.push({c:"atk",t:`${u.name} → 建物に ${dmg}ダメージ${cr}`, ev:hitEv(u.bid,"B",Math.max(0,bhp),{dmg,note:""},crit>1,false,tm(u.elm)>1)});
+          if(bhp<=0){ captured=true; log.push({c:"sys",t:`🚩 ${b.name} のHPが0になった！`, ev:{k:"capture",color:FACTIONS[me.faction].color}}); break; }
         }else{
           bhp=Math.max(1,bhp-dmg); // 拠点HPは0にならない
           dmgDealt+=hpBefore-bhp;
-          log.push({c:"atk",t:`${u.name} → 拠点に ${dmg}ダメージ${cr}`});
+          u.dealt=(u.dealt||0)+hpBefore-bhp;
+          log.push({c:"atk",t:`${u.name} → 拠点に ${dmg}ダメージ${cr}`, ev:hitEv(u.bid,"B",bhp,{dmg,note:""},crit>1,false,tm(u.elm)>1)});
         }
       }
     }
@@ -1659,8 +1776,9 @@ function runBattle(bid,b){
       const mult=elmMult(d.elm,t.elm), crit=skCritRoll(d);
       const raw=Math.max(1,Math.round(baseDmg(d.bAtk*tm(d.elm)*skAtkMult(d,D,r), t.bDef*tm(t.elm)*skDefMult(t,A))*mult*crit));
       const hit=skHit(t,raw,d);
-      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`});
-      if(t.hp<=0){ koyoGain[d.pid]=(koyoGain[d.pid]||0)+evK; d.skKills=(d.skKills||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
+      log.push({c:"def",t:`🛡 ${d.name} → ${t.name} に ${hit.dmg}ダメージ${crit>1?"（💥クリティカル！）":""}${mult>1?"（属性で効果バツグン！）":""}${tm(d.elm)>1?"（⛰地形ボーナス！）":""}${hit.note}`,
+        ev:hitEv(d.bid,t.bid,t.hp,hit,crit>1,mult>1,tm(d.elm)>1)});
+      if(t.hp<=0){ koyoGain[d.pid]=(koyoGain[d.pid]||0)+evK; d.skKills=(d.skKills||0)+1; log.push({c:"sys",t:`😵 ${t.name} がやられた…`, ev:{k:"ko",to:t.bid}}); }
     }
     if(!D.some(d=>d.hp>0)){
       // 建物の反撃
@@ -1669,8 +1787,8 @@ function runBattle(bid,b){
         const t=t2[Math.floor(Math.random()*t2.length)];
         const raw=Math.max(1,Math.round(baseDmg(bAtk, t.bDef*tm(t.elm)*skDefMult(t,A))));
         const hit=skHit(t,raw,null);
-        log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${hit.dmg}ダメージ${hit.note}`});
-        if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`}); }
+        log.push({c:"def",t:`🏢 建物の反撃 → ${t.name} に ${hit.dmg}ダメージ${hit.note}`, ev:hitEv("B",t.bid,t.hp,hit,false,false,false)});
+        if(t.hp<=0){ log.push({c:"sys",t:`😵 ${t.name} がやられた…`, ev:{k:"ko",to:t.bid}}); }
       }
     }
     skRoundEnd(A,log); skRoundEnd(D,log);
@@ -1740,7 +1858,18 @@ function runBattle(bid,b){
   });
   db.ref().update(up).catch(dbErr);
   missionProg("attack");
-  showLog(log);
+  // リザルト画面
+  const allDown=!A.some(u=>u.hp>0), aliveD=D.filter(d=>d.hp>0).length;
+  const rewards=Object.entries(drop).map(([k,v])=>({ico:MATERIALS[k], txt:`×${v}`}));
+  if(yenGain>0) rewards.push({ico:"💴", txt:`${yenGain}円`});
+  if(eqDrop) rewards.push({ico:EQUIPS[eqDrop].name, txt:EQUIPS[eqDrop].desc, rare:true});
+  showLog(log, scene, battleResult(A, {
+    outcome: captured?"capture": allDown?"lose":"timeup",
+    sub: captured ? `${b.name} を ${FACTIONS[me.faction].short}科が制圧！`
+       : allDown ? "出撃メンバーが全滅した…"
+       : b.type==="base" ? `拠点のHPを ${hpStart-bhp} 削った（残り ${bhp}/${b.maxHp}）`
+       : `制圧まであと ${bhp}！${aliveD?`（警備員が${aliveD}体残っている）`:""}`,
+    rewards }));
 }
 // 出撃メンバーのHP確定。🍜カップ麺は生き残っていればバトル後に回復（建物バトル・不審者バトル共通）
 function writeMemberHp(A, up, log){
@@ -1756,30 +1885,150 @@ function writeMemberHp(A, up, log){
   });
   if(ramenHeals.length) log.push({c:"sys",t:`🍜 カップ麺でHP回復: ${ramenHeals.join(" ")}`});
 }
-let logQueue=[], logIdx=0, logTimer=null;
+/* =============== バトル演出（対面画面・ダメージ数字・リザルト・再生速度） =============== */
+// 計算はバトル関数で全部済ませ、ログ行に付けた再生用イベント(ev)を順に再生するだけ（表示と結果はずれない）
+function hitEv(from,to,hpAfter,hit,crit,adv,ter){
+  const note=hit.note||"";
+  return {k:"hit", from, to, dmg:hit.dmg, hp:Math.max(0,hpAfter), crit, adv, ter,
+    miss:hit.dmg===0, guard:/受け流/.test(note), stay:/踏みとどま/.test(note)};
+}
+// 対面画面のカード（顔はスキルのアイコン）
+function bFighter(u){ return {bid:u.bid, name:u.name, rank:u.rank, elm:u.elm||null, hp:Math.max(0,u.hp), maxHp:u.maxHp, ico:skillDef(u)?.ico||"🙂"}; }
+function battleResult(A, r){ return {...r, dealt:A.map(u=>({name:u.name, rank:u.rank, d:u.dealt||0}))}; }
+
+const BSPD_KEY="koyo_bspd";
+let bSpeed=(()=>{ try{ const v=+localStorage.getItem(BSPD_KEY); return [1,2,4].includes(v)?v:1; }catch(e){ return 1; } })();
+let bp=null; // 再生中のバトル {log, i, timer, scene, result, skipped}
+const B_WAIT={hit:560, heal:420, skill:650, round:520, ko:260, capture:1300, text:70}; // ×1のときの待ち時間(ms)
+
 function addLogLine(l){
   const el=$("blog");
   const d=document.createElement("div"); d.className=l.c; d.textContent=l.t;
   el.appendChild(d); el.scrollTop=el.scrollHeight;
+  $("bticker").textContent=l.t;
 }
-function showLog(log){
-  $("blog").innerHTML="";
+function setBattleSpeed(v){
+  bSpeed=v; try{ localStorage.setItem(BSPD_KEY,v); }catch(e){}
+  document.querySelectorAll("#bspd button").forEach(b=>b.classList.toggle("sel", +b.dataset.spd===v));
+  $("bstage").style.setProperty("--d", 1/v);
+}
+function bCardHtml(u, big, ally){
+  const r=Math.max(0,Math.min(1,u.hp/u.maxHp));
+  return `<div class="bu ${big?"big":""} ${ally?"ally":"foe"} ${u.hp<=0?"ko":""}" id="bu_${u.bid}" data-max="${u.maxHp}">
+    <div class="bface">${u.ico}${u.rank?`<span class="rank ${u.rank}">${u.rank}</span>`:""}${u.elm&&ELEMENTS[u.elm]?`<span class="belm">${ELEMENTS[u.elm].ico}</span>`:""}</div>
+    <div class="bnm">${esc(u.name)}</div>
+    <div class="bhp"><i class="${r<0.3?"low":r<0.6?"mid":""}" style="width:${r*100}%"></i></div>
+    <div class="bhpn">${u.hp}/${u.maxHp}</div></div>`;
+}
+function renderStage(sc){
+  $("bstage").className = sc.ter ? "ter-"+sc.ter : (sc.main.kind==="suspect"?"ter-suspect":"");
+  $("bround").textContent="READY";
+  $("bsEnemy").innerHTML = bCardHtml(sc.main,true,false)
+    + (sc.enemies.length?`<div class="bgrid">${sc.enemies.map(u=>bCardHtml(u,false,false)).join("")}</div>`:"");
+  $("bsAlly").innerHTML = `<div class="bgrid">${sc.allies.map(u=>bCardHtml(u,false,true)).join("")}</div>`;
+}
+// scene/resultが無ければ従来どおり文字ログだけ
+function showLog(log, scene, result){
+  bStop();
+  $("blog").innerHTML=""; $("bticker").textContent="";
+  $("bresult").innerHTML=""; $("bresult").style.display="none";
   $("ovLog").classList.add("show");
-  logQueue=log; logIdx=0;
-  clearTimeout(logTimer);
-  $("blogSkip").style.display="";
-  const tick=()=>{
-    if(logIdx>=logQueue.length){ $("blogSkip").style.display="none"; return; }
-    addLogLine(logQueue[logIdx++]);
-    logTimer=setTimeout(tick, 120);
-  };
-  tick();
+  $("bstage").style.display=scene?"":"none";
+  $("blogBox").open=!scene;
+  bp={log, i:0, timer:null, scene, result, skipped:false};
+  if(scene) renderStage(scene);
+  setBattleSpeed(bSpeed);
+  $("bctl").style.display="";
+  bStep();
 }
-// 1行ずつの演出を飛ばして残りを全部表示
+function bStep(){
+  if(!bp) return;
+  if(bp.i>=bp.log.length){ bFinish(); return; }
+  const l=bp.log[bp.i++];
+  addLogLine(l);
+  const w=(l.ev && bp.scene) ? bPlay(l.ev) : B_WAIT.text;
+  bp.timer=setTimeout(bStep, w/bSpeed);
+}
+// 演出を飛ばして結果へ（残りのHP・気絶は一気に反映）
 function skipLog(){
-  clearTimeout(logTimer);
-  while(logIdx<logQueue.length) addLogLine(logQueue[logIdx++]);
-  $("blogSkip").style.display="none";
+  if(!bp) return;
+  clearTimeout(bp.timer); bp.skipped=true;
+  while(bp.i<bp.log.length){ const l=bp.log[bp.i++]; addLogLine(l); if(l.ev&&bp.scene) bApply(l.ev); }
+  bFinish();
+}
+function bStop(){ if(bp){ clearTimeout(bp.timer); bp.skipped=true; } bp=null; }
+const bEl = bid => document.getElementById("bu_"+bid);
+function bSetHp(bid,hp){
+  const el=bEl(bid); if(!el) return;
+  const max=+el.dataset.max||1, r=Math.max(0,Math.min(1,hp/max));
+  const bar=el.querySelector(".bhp i");
+  bar.style.width=(r*100)+"%"; bar.className=r<0.3?"low":r<0.6?"mid":"";
+  el.querySelector(".bhpn").textContent=`${hp}/${max}`;
+  el.classList.toggle("ko", hp<=0);
+}
+function bApply(ev){
+  if(ev.k==="hit"||ev.k==="heal") bSetHp(ev.to, ev.hp);
+  else if(ev.k==="ko"){ const el=bEl(ev.to); if(el) el.classList.add("ko"); }
+  else if(ev.k==="round") $("bround").textContent=`ROUND ${ev.n} / ${ev.max}`;
+}
+function bRestart(el,cls){ if(!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+// ダメージ数字はカードの中ではなく画面の上に重ねる（とどめで気絶したカードと一緒に薄くならないように）
+function bPop(bid, html, cls){
+  const el=bEl(bid), st=$("bstage"); if(!el) return;
+  const er=el.getBoundingClientRect(), sr=st.getBoundingClientRect();
+  const p=document.createElement("div"); p.className="bpop "+(cls||""); p.innerHTML=html;
+  p.style.left=(er.left-sr.left+er.width/2)+"px"; p.style.top=(er.top-sr.top+er.height*0.18)+"px";
+  st.appendChild(p); setTimeout(()=>p.remove(), 1100/bSpeed+80);
+}
+function bBanner(html, cls, color){
+  const f=$("bflash"); f.className=""; f.innerHTML=html;
+  if(color) f.style.setProperty("--fc",color);
+  void f.offsetWidth; f.className="show "+cls;
+}
+// イベント1つを演出つきで再生し、次までの待ち時間(×1基準)を返す
+function bPlay(ev){
+  const tok=bp;
+  if(ev.k==="round"){ bApply(ev); bRestart($("bround"),"pop"); return B_WAIT.round; }
+  if(ev.k==="skill"){ bRestart(bEl(ev.who),"glow"); bBanner(`✨${ev.ico} ${esc(ev.name)}`,"skill"); return B_WAIT.skill; }
+  if(ev.k==="ko"){ bApply(ev); return B_WAIT.ko; }
+  if(ev.k==="capture"){ bBanner("🚩 制圧！","capture",ev.color); return B_WAIT.capture; }
+  if(ev.k==="heal"){ bApply(ev); bPop(ev.to,`+${ev.amt}`,"heal"); bRestart(bEl(ev.to),"glow"); return B_WAIT.heal; }
+  if(ev.k==="hit"){
+    const a=bEl(ev.from);
+    bRestart(a, a&&a.classList.contains("ally")?"lungeUp":"lungeDown");
+    setTimeout(()=>{
+      if(bp!==tok || tok.skipped) return; // 飛ばした・次のバトルが始まったときは何もしない
+      bSetHp(ev.to, ev.hp);
+      if(ev.miss){ bPop(ev.to,"MISS","miss"); return; }
+      bRestart(bEl(ev.to), ev.crit?"hitBig":"hit");
+      const tags=[];
+      if(ev.crit) tags.push("💥CRITICAL!"); if(ev.adv) tags.push("効果バツグン!"); if(ev.ter) tags.push("⛰地形");
+      if(ev.guard) tags.push("受け流し"); if(ev.stay) tags.push("踏みとどまった!");
+      bPop(ev.to, `<b>${ev.dmg}</b>${tags.length?`<small>${tags.join(" ")}</small>`:""}`, (ev.crit?"crit ":"")+(ev.adv?"adv":""));
+      if(ev.crit) bRestart($("bstage"),"quake");
+    }, 210/bSpeed);
+    return B_WAIT.hit*(ev.crit?1.25:1);
+  }
+  return B_WAIT.text;
+}
+// リザルト画面
+function bFinish(){
+  if(!bp) return;
+  $("bctl").style.display="none";
+  const r=bp.result; if(!r) return;
+  const H={capture:["🚩 制圧！","cap"], win:["🎉 WIN!","win"], lose:["LOSE…","lose"], timeup:["⏱ TIME UP","tu"]}[r.outcome]||["結果","tu"];
+  const maxD=Math.max(1,...r.dealt.map(x=>x.d));
+  const mvp=r.dealt.reduce((m,x)=>x.d>(m?m.d:0)?x:m, null);
+  let html=`<div class="bres-head ${H[1]}">${H[0]}</div><div class="bres-sub">${esc(r.sub)}</div>
+    <div class="bres-sec">与えたダメージ</div>`
+    + r.dealt.map((x,i)=>`<div class="bres-row" style="animation-delay:${i*0.08}s"><span class="rank ${x.rank}">${x.rank}</span>
+        <span class="bres-nm">${x===mvp?"👑":""}${esc(x.name)}</span><span class="bres-bar"><i style="width:${x.d/maxD*100}%"></i></span><b>${x.d}</b></div>`).join("");
+  if(mvp) html+=`<div class="note" style="margin-top:4px">👑 MVP: ${esc(mvp.name)}（${mvp.d}ダメージ）</div>`;
+  if(r.rewards.length) html+=`<div class="bres-sec">報酬</div><div class="bres-rew">`
+    + r.rewards.map((w,i)=>`<div class="rw ${w.rare?"rare":""}" style="animation-delay:${0.4+i*0.25}s">${w.ico} ${esc(w.txt)}</div>`).join("")+`</div>`;
+  html+=`<div class="row" style="margin-top:12px"><button class="bigbtn" onclick="closeOv('ovLog')">OK</button></div>`;
+  const el=$("bresult"); el.innerHTML=html; el.style.display="block";
+  el.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
 /* =============== ガシャ =============== */
